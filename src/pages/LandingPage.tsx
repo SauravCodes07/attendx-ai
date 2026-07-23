@@ -1,4 +1,5 @@
-import { ArrowRight, Bot, CheckCircle2, ChevronRight, Play, ShieldCheck, Sparkles, Star, Zap } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowRight, BellRing, Brain, CheckCircle2, ChevronRight, Clock3, Layers3, Play, ShieldCheck, Sparkles, TrendingUp, Zap } from 'lucide-react'
 
 type LandingPageProps = {
   onGetStarted: () => void
@@ -7,63 +8,97 @@ type LandingPageProps = {
   isAuthenticated: boolean
 }
 
-const featureHighlights = [
-  {
-    icon: Bot,
-    title: 'AI attendance copilot',
-    description: 'Turn everyday class check-ins into instant summaries and smart alerts.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Private by design',
-    description: 'Your academic records stay protected with secure Supabase-backed sessions.',
-  },
-  {
-    icon: Zap,
-    title: 'Frictionless updates',
-    description: 'Capture attendance, view trends, and share insights in seconds from any device.',
-  },
+type MagneticButtonProps = {
+  children: React.ReactNode
+  onClick?: () => void
+  className?: string
+}
+
+const featureCards = [
+  { icon: Brain, title: 'AI signal engine', description: 'Instant context from every class update.' },
+  { icon: ShieldCheck, title: 'Protected by design', description: 'Secure sign-in with zero exposure of private data.' },
+  { icon: Zap, title: 'Live workflow', description: 'Fast updates for students, staff, and coordinators.' },
 ]
 
-const stats = [
-  { value: '98.7%', label: 'accuracy in smart attendance snapshots' },
-  { value: '24/7', label: 'adaptive monitoring for every class' },
-  { value: '4.9/5', label: 'rated by students and educators' },
-]
+function MagneticButton({ children, onClick, className = '' }: MagneticButtonProps) {
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
 
-const testimonials = [
-  {
-    quote: 'AttendX AI feels like a premium command center for my semester.',
-    name: 'Mina Patel',
-    role: 'Computer Science Student',
-  },
-  {
-    quote: 'The live dashboard gives my mentor a clearer picture of attendance without extra work.',
-    name: 'Daniel Ortiz',
-    role: 'Academic Coordinator',
-  },
-]
+  const handleMove = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    const moveX = (x - rect.width / 2) / 12
+    const moveY = (y - rect.height / 2) / 12
+    setOffset({ x: moveX, y: moveY })
+  }
 
-const faqs = [
-  {
-    question: 'Do I need to create an account before seeing the experience?',
-    answer: 'No. The landing experience is public and designed to introduce AttendX AI, while protected insights remain available only after sign-in.',
-  },
-  {
-    question: 'What happens after my first login?',
-    answer: 'You will be guided through a short academic profile step before access to the full dashboard is unlocked.',
-  },
-  {
-    question: 'Can I revisit the landing page after sign-in?',
-    answer: 'Yes. Returning users can jump back to the landing page and instantly switch to the dashboard with a single click.',
-  },
-]
+  const handleLeave = () => setOffset({ x: 0, y: 0 })
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const ripple = document.createElement('span')
+    ripple.className = 'ripple'
+    ripple.style.left = `${event.clientX - rect.left}px`
+    ripple.style.top = `${event.clientY - rect.top}px`
+    event.currentTarget.appendChild(ripple)
+    setTimeout(() => ripple.remove(), 600)
+    onClick?.()
+  }
+
+  return (
+    <button
+      type="button"
+      className={`magnetic-button ${className}`.trim()}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+      onClick={handleClick}
+      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+    >
+      {children}
+    </button>
+  )
+}
 
 export default function LandingPage({ onGetStarted, onLogin, onGoToDashboard, isAuthenticated }: LandingPageProps) {
+  const [visible, setVisible] = useState<string[]>([])
+  const [spotlight, setSpotlight] = useState({ x: 50, y: 50 })
+
+  useEffect(() => {
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'))
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id
+          setVisible((current) => (current.includes(id) ? current : [...current, id]))
+        }
+      })
+    }, { threshold: 0.18 })
+
+    nodes.forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const handleMove = (event: MouseEvent) => {
+      setSpotlight({
+        x: (event.clientX / window.innerWidth) * 100,
+        y: (event.clientY / window.innerHeight) * 100,
+      })
+    }
+
+    window.addEventListener('pointermove', handleMove)
+    return () => window.removeEventListener('pointermove', handleMove)
+  }, [])
+
+  const spotlightStyle = useMemo(() => ({
+    background: `radial-gradient(circle at ${spotlight.x}% ${spotlight.y}%, rgba(255,255,255,0.2), transparent 28%)`,
+  }), [spotlight])
+
   return (
-    <div className="landing-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
+    <div className="landing-shell" style={spotlightStyle}>
+      <div className="aurora aurora-one" />
+      <div className="aurora aurora-two" />
+      <div className="grid-overlay" />
 
       <header className="landing-nav">
         <div className="logo" aria-label="AttendX AI">
@@ -72,103 +107,107 @@ export default function LandingPage({ onGetStarted, onLogin, onGoToDashboard, is
         </div>
 
         <nav className="landing-nav__links" aria-label="Primary navigation">
-          <a href="#features">Features</a>
-          <a href="#preview">Preview</a>
-          <a href="#faq">FAQ</a>
+          <a href="#experience">Experience</a>
+          <a href="#workflow">Workflow</a>
+          <a href="#launch">Launch</a>
         </nav>
 
         <div className="landing-nav__actions">
           {isAuthenticated ? (
-            <button className="primary-button landing-action" onClick={onGoToDashboard}>
-              Go to Dashboard <ArrowRight size={16} />
-            </button>
+            <MagneticButton className="primary-button" onClick={onGoToDashboard}>Go to Dashboard</MagneticButton>
           ) : (
             <>
-              <button className="landing-link" onClick={onLogin}>Login</button>
-              <button className="primary-button landing-action" onClick={onGetStarted}>
-                Get Started <ArrowRight size={16} />
-              </button>
+              <MagneticButton className="ghost-button" onClick={onLogin}>Login</MagneticButton>
+              <MagneticButton className="primary-button" onClick={onGetStarted}>Get Started</MagneticButton>
             </>
           )}
         </div>
       </header>
 
       <main className="landing-main">
-        <section className="landing-hero">
-          <div className="landing-hero__copy">
-            <div className="landing-badge">
-              <Sparkles size={14} /> Premium attendance intelligence for modern campuses
-            </div>
-            <h1>Meet AttendX AI — the elegant layer between every class and every insight.</h1>
-            <p>
-              Discover a mobile-first experience that turns attendance into a calm, intelligent workflow with premium storytelling, live analytics, and effortless onboarding.
-            </p>
-            <div className="landing-hero__actions">
-              <button className="primary-button" onClick={onGetStarted}>
-                Get Started <ArrowRight size={16} />
-              </button>
-              <button className="landing-secondary" onClick={onLogin}>
-                <Play size={16} /> Watch the experience
-              </button>
-            </div>
-            <div className="landing-trust-row">
-              <span><CheckCircle2 size={14} /> No protected data exposed</span>
-              <span><CheckCircle2 size={14} /> Secure sign-in first</span>
-              <span><CheckCircle2 size={14} /> Designed for every screen</span>
+        <section id="hero" className={`landing-hero ${visible.includes('hero') ? 'is-visible' : ''}`} data-reveal>
+          <div className="hero-copy">
+            <div className="hero-badge"><Sparkles size={14} /> Premium AI attendance platform</div>
+            <h1>Attendance that feels effortless.</h1>
+            <p>Beautifully simple workflows for every class, every campus, every moment.</p>
+            <div className="hero-actions">
+              <MagneticButton className="primary-button" onClick={onGetStarted}>Start free <ArrowRight size={16} /></MagneticButton>
+              <MagneticButton className="ghost-button" onClick={onLogin}><Play size={15} /> Watch the flow</MagneticButton>
             </div>
           </div>
 
-          <div className="landing-hero__visual">
-            <div className="dashboard-preview" id="preview">
-              <div className="dashboard-preview__top">
+          <div className="hero-stage">
+            <div className="dashboard-shell">
+              <div className="dashboard-shell__top">
                 <div>
-                  <p className="eyebrow">Live dashboard preview</p>
-                  <h3>Attendance pulse</h3>
+                  <p className="eyebrow">Live dashboard</p>
+                  <h3>Today’s pulse</h3>
                 </div>
-                <span className="preview-pill">Connected</span>
+                <span className="live-pill">Live</span>
               </div>
 
-              <div className="mock-chart">
-                <div className="mock-bar" style={{ height: '48%' }} />
-                <div className="mock-bar" style={{ height: '78%' }} />
-                <div className="mock-bar" style={{ height: '62%' }} />
-                <div className="mock-bar" style={{ height: '90%' }} />
-                <div className="mock-bar" style={{ height: '74%' }} />
+              <div className="dashboard-shell__body">
+                <div className="stack-card large-card">
+                  <div className="stack-card__header">
+                    <div>
+                      <p className="muted-label">Engagement</p>
+                      <strong>Healthy rhythm</strong>
+                    </div>
+                    <div className="mini-chip">+12%</div>
+                  </div>
+                  <div className="bar-rows">
+                    <div className="bar-row"><span>Math</span><div className="bar-track"><i style={{ width: '92%' }} /></div></div>
+                    <div className="bar-row"><span>Physics</span><div className="bar-track"><i style={{ width: '84%' }} /></div></div>
+                    <div className="bar-row"><span>Design</span><div className="bar-track"><i style={{ width: '76%' }} /></div></div>
+                  </div>
+                </div>
+
+                <div className="stack-card compact-card">
+                  <div className="stack-card__header">
+                    <div>
+                      <p className="muted-label">Next class</p>
+                      <strong>AI studio</strong>
+                    </div>
+                    <Clock3 size={16} />
+                  </div>
+                  <div className="timeline-card">
+                    <div className="timeline-dot" />
+                    <div>
+                      <strong>09:30</strong>
+                      <p>Smart check-in ready</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="mock-stats">
-                <div>
-                  <strong>94%</strong>
-                  <span>weekly attendance</span>
-                </div>
-                <div>
-                  <strong>+12</strong>
-                  <span>smart alerts</span>
-                </div>
-                <div>
-                  <strong>3</strong>
-                  <span>live topics</span>
-                </div>
+              <div className="floating-widget widget-a">
+                <BellRing size={15} />
+                <span>2 new alerts</span>
+              </div>
+              <div className="floating-widget widget-b">
+                <TrendingUp size={15} />
+                <span>Momentum up</span>
+              </div>
+              <div className="floating-widget widget-c">
+                <Layers3 size={15} />
+                <span>Smart boards</span>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="landing-section" id="features">
-          <div className="section-heading centered">
-            <div className="landing-badge small">Intelligent by default</div>
-            <h2>Every detail feels premium, responsive, and effortless.</h2>
-            <p>From onboarding to analytics, AttendX AI is carefully tuned for clarity, motion, and momentum.</p>
+        <section id="experience" className={`landing-section ${visible.includes('experience') ? 'is-visible' : ''}`} data-reveal>
+          <div className="section-head">
+            <span className="eyebrow">Experience</span>
+            <h2>Designed like the best products in the world.</h2>
           </div>
 
           <div className="feature-grid">
-            {featureHighlights.map((feature) => {
+            {featureCards.map((feature) => {
               const Icon = feature.icon
               return (
-                <article className="feature-card" key={feature.title}>
-                  <div className="feature-icon">
-                    <Icon size={18} />
-                  </div>
+                <article className="glass-card feature-card" key={feature.title}>
+                  <div className="feature-icon"><Icon size={18} /></div>
                   <h3>{feature.title}</h3>
                   <p>{feature.description}</p>
                 </article>
@@ -177,66 +216,38 @@ export default function LandingPage({ onGetStarted, onLogin, onGoToDashboard, is
           </div>
         </section>
 
-        <section className="landing-section stats-section">
-          <div className="stats-strip">
-            {stats.map((item) => (
-              <div className="stat-pill" key={item.label}>
-                <strong>{item.value}</strong>
-                <span>{item.label}</span>
-              </div>
-            ))}
+        <section id="workflow" className={`landing-section workflow-section ${visible.includes('workflow') ? 'is-visible' : ''}`} data-reveal>
+          <div className="glass-card workflow-card">
+            <div className="workflow-card__content">
+              <span className="eyebrow">Workflow</span>
+              <h2>One calm surface for every signal.</h2>
+              <p>Minimal by design, powerful in motion.</p>
+            </div>
+            <div className="workflow-card__list">
+              <div className="workflow-item"><CheckCircle2 size={16} /><span>Secure onboarding</span></div>
+              <div className="workflow-item"><CheckCircle2 size={16} /><span>Live class summaries</span></div>
+              <div className="workflow-item"><CheckCircle2 size={16} /><span>Smart student insights</span></div>
+            </div>
           </div>
         </section>
 
-        <section className="landing-section testimonial-section">
-          <div className="section-heading centered">
-            <div className="landing-badge small">Loved by learners</div>
-            <h2>Designed to feel polished from the first tap.</h2>
-          </div>
-          <div className="testimonial-grid">
-            {testimonials.map((item) => (
-              <article className="testimonial-card" key={item.name}>
-                <div className="testimonial-stars">
-                  {Array.from({ length: 5 }).map((_, index) => <Star key={index} size={14} fill="currentColor" />)}
-                </div>
-                <p>“{item.quote}”</p>
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>{item.role}</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="landing-section faq-section" id="faq">
-          <div className="section-heading centered">
-            <div className="landing-badge small">FAQ</div>
-            <h2>Everything you need to know before you jump in.</h2>
-          </div>
-          <div className="faq-list">
-            {faqs.map((item) => (
-              <details className="faq-item" key={item.question}>
-                <summary>{item.question}</summary>
-                <p>{item.answer}</p>
-              </details>
-            ))}
+        <section id="launch" className={`landing-section launch-section ${visible.includes('launch') ? 'is-visible' : ''}`} data-reveal>
+          <div className="glass-card launch-card">
+            <div>
+              <span className="eyebrow">Ready</span>
+              <h2>Launch your attendance OS in minutes.</h2>
+            </div>
+            <MagneticButton className="primary-button" onClick={onGetStarted}>Start building <ChevronRight size={16} /></MagneticButton>
           </div>
         </section>
       </main>
 
       <footer className="landing-footer">
-        <div>
-          <div className="logo" aria-label="AttendX AI">
-            <div className="logo-mark"><span /><span /><span /></div>
-            <span>Attend<span>X</span></span>
-          </div>
-          <p>AttendX AI blends clarity, elegance, and intelligent attendance workflows for every learner and educator.</p>
+        <div className="logo" aria-label="AttendX AI">
+          <div className="logo-mark"><span /><span /><span /></div>
+          <span>Attend<span>X</span></span>
         </div>
-        <div className="footer-actions">
-          <button className="landing-link" onClick={onLogin}>Login</button>
-          <button className="primary-button" onClick={onGetStarted}>Start your journey <ChevronRight size={16} /></button>
-        </div>
+        <p>Designed for modern campuses — premium, calm, and secure.</p>
       </footer>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react'
-import { supabase } from '../supabase'
+import { getAuthRedirectUrl, supabase } from '../supabase'
 
 type AuthMode = 'login' | 'signup' | 'forgot'
 
@@ -42,7 +42,7 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
 
     try {
       if (mode === 'forgot') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: getAuthRedirectUrl() })
         if (error) throw error
         setMessage('Check your email for the reset link.')
       } else if (mode === 'signup') {
@@ -50,7 +50,7 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: getAuthRedirectUrl(),
             data: { full_name: fullName },
           },
         })
@@ -74,7 +74,13 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
 
   async function handleGoogle() {
     setLoading(true)
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: getAuthRedirectUrl(),
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+      },
+    })
     setLoading(false)
     if (error) setError(error.message)
   }

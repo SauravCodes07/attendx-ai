@@ -4,6 +4,11 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ioxfyynymtxsun
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_x-2ARMwkIieFMIbaXpZfnw_z37ZU_l8'
 const missingConfigMessage = 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
 
+export const getAuthRedirectUrl = () => {
+  const configured = import.meta.env.VITE_SITE_URL || window.location.origin
+  return configured.replace(/\/$/, '')
+}
+
 const createMissingQueryBuilder = () => {
   const builder = {
     select: () => builder,

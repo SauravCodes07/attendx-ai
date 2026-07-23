@@ -101,7 +101,8 @@ function App() {
       return (
         <div className="app auth-shell">
           <div className="ambient ambient-one" /><div className="ambient ambient-two" />
-          <div className="auth-card">
+          <div className="auth-card loading-card">
+            <div className="loading-ring" aria-hidden="true" />
             <div className="auth-card__hero">
               <div className="logo" aria-label="AttendX AI"><div className="logo-mark"><span /><span /><span /></div><span>Attend<span>X</span></span></div>
               <h1>Loading AttendX AI</h1>
