@@ -1,3 +1,5 @@
+export type ThemePreference = 'light' | 'dark' | 'system'
+
 export interface Profile {
   id: string
   full_name: string | null
@@ -7,6 +9,7 @@ export interface Profile {
   phone: string | null
   bio: string | null
   dark_mode: boolean
+  theme_preference: ThemePreference
   usn?: string | null
   roll_number?: string | null
   branch?: string | null
@@ -16,6 +19,12 @@ export interface Profile {
   section?: string | null
   dob?: string | null
   mobile?: string | null
+  gender?: string | null
+  address?: string | null
+  emergency_contact?: string | null
+  personal_email?: string | null
+  college_email?: string | null
+  profile_photo_url?: string | null
   attendance_percentage?: number | null
   current_streak?: number | null
   account_status?: string | null

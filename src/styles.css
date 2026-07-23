@@ -7,7 +7,7 @@ body { margin: 0; min-width: 320px; background: #f7f8fc; }
 button { border: 0; font: inherit; color: inherit; cursor: pointer; }
 #root { min-height: 100vh; }
 .app { --ink: #0c1124; --muted: #6d7594; --card: rgba(255,255,255,.76); --line: rgba(224,229,244,.9); --purple: #686bff; --cyan: #42c9dd; --soft: #f7f8fc; min-height: 100vh; background: #f7f8fc; position: relative; overflow: hidden; transition: background .3s ease, color .3s ease; }
-.app.dark { --ink: #eef0ff; --muted: #98a1bf; --card: rgba(18,25,44,.8); --line: rgba(70,81,113,.8); --soft: #070b18; background: #070b18; color: var(--ink); }
+.app.dark, .dark .app { --ink: #eef0ff; --muted: #98a1bf; --card: rgba(18,25,44,.8); --line: rgba(70,81,113,.8); --soft: #070b18; background: #070b18; color: var(--ink); }
 .ambient { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; opacity: .24; }
 .ambient-one { width: 500px; height: 500px; background: #a6b8ff; top: -270px; left: 38%; }
 .ambient-two { width: 410px; height: 410px; background: #a5eaff; right: -210px; top: 32%; }
