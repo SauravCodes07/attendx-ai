@@ -7,6 +7,21 @@ export interface Profile {
   phone: string | null
   bio: string | null
   dark_mode: boolean
+  usn?: string | null
+  roll_number?: string | null
+  branch?: string | null
+  department?: string | null
+  year?: string | null
+  semester?: string | null
+  section?: string | null
+  dob?: string | null
+  mobile?: string | null
+  attendance_percentage?: number | null
+  current_streak?: number | null
+  account_status?: string | null
+  email_verified?: boolean | null
+  last_login?: string | null
+  joined_at?: string | null
   created_at: string
   updated_at: string
 }

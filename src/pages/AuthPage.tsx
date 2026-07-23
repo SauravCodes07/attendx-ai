@@ -16,7 +16,7 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: unknown, session: unknown) => {
       if (session) onAuth()
     })
     return () => subscription.unsubscribe()
