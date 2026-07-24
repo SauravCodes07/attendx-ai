@@ -3,7 +3,7 @@ import { ArrowRight, Sparkles } from 'lucide-react'
 import AuthPage from './pages/AuthPage'
 import DashboardPage from './pages/DashboardPage'
 import LandingPage from './pages/LandingPage'
-import { supabase, ensureProfile, isProfileComplete } from './supabase'
+import { supabase, ensureProfile, isProfileComplete, ensureAvatarBucket } from './supabase'
 import { useTheme } from './hooks/useTheme'
 import { PremiumInput, PremiumSelect, PremiumFileUpload } from './components/PremiumInput'
 import type { Profile } from './types'
@@ -22,7 +22,6 @@ function App() {
   const [profileForm, setProfileForm] = useState({
     full_name: '',
     branch: '',
-    department: '',
     year: '1',
     semester: '1',
     avatar_url: '',
@@ -58,7 +57,6 @@ function App() {
                 ...prev,
                 full_name: fetchedProfile.full_name || '',
                 branch: fetchedProfile.branch || '',
-                department: fetchedProfile.department || '',
                 year: fetchedProfile.year || '1',
                 semester: fetchedProfile.semester || '1',
                 avatar_url: fetchedProfile.avatar_url || '',
@@ -107,7 +105,6 @@ function App() {
               ...prev,
               full_name: fetchedProfile.full_name || prev.full_name,
               branch: fetchedProfile.branch || prev.branch,
-              department: fetchedProfile.department || prev.department,
               year: fetchedProfile.year || prev.year,
               semester: fetchedProfile.semester || prev.semester,
               avatar_url: fetchedProfile.avatar_url || prev.avatar_url,
@@ -147,6 +144,12 @@ function App() {
 
     setUploadState('Uploading photo...')
     try {
+      const { ready } = await ensureAvatarBucket()
+      if (!ready) {
+        setUploadState('Storage is not ready. Please try again later.')
+        return
+      }
+
       const fileExt = file.name.split('.').pop()
       const fileName = `${profile.id}/avatar-${Date.now()}.${fileExt}`
 
@@ -176,10 +179,6 @@ function App() {
       setProfileError('Branch is required.')
       return
     }
-    if (!profileForm.department.trim()) {
-      setProfileError('Department is required.')
-      return
-    }
     if (!profileForm.year) {
       setProfileError('Year is required.')
       return
@@ -198,7 +197,6 @@ function App() {
         .update({
           full_name: profileForm.full_name,
           branch: profileForm.branch,
-          department: profileForm.department,
           year: profileForm.year,
           semester: profileForm.semester,
           avatar_url: profileForm.avatar_url || null,
@@ -311,22 +309,13 @@ function App() {
                 autoFocus
               />
 
-              <div className="settings-grid onboarding-grid">
-                <PremiumInput
-                  label="Branch"
-                  value={profileForm.branch}
-                  onChange={(event) => setProfileForm({ ...profileForm, branch: event.target.value })}
-                  placeholder="e.g. Computer Science"
-                  required
-                />
-                <PremiumInput
-                  label="Department"
-                  value={profileForm.department}
-                  onChange={(event) => setProfileForm({ ...profileForm, department: event.target.value })}
-                  placeholder="e.g. CSE"
-                  required
-                />
-              </div>
+              <PremiumInput
+                label="Branch"
+                value={profileForm.branch}
+                onChange={(event) => setProfileForm({ ...profileForm, branch: event.target.value })}
+                placeholder="e.g. Computer Science"
+                required
+              />
 
               <div className="settings-grid onboarding-grid">
                 <PremiumSelect

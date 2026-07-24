@@ -23,6 +23,7 @@ import SearchOverlay from '../components/SearchOverlay'
 import MobileDrawer from '../components/MobileDrawer'
 import Toast from '../components/Toast'
 import AdminPanel from '../components/AdminPanel'
+import { StatCardSkeleton, AttendanceRowSkeleton, ChartSkeleton, NextClassSkeleton, Skeleton } from '../components/SkeletonLoader'
 
 // Lucide icon helper imports
 import { Target, CalendarDays, TrendingUp, Check, Lock, Sparkles } from 'lucide-react'
@@ -226,9 +227,15 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
   const profileLocked = completionPercentage < 100
 
   const handleNavigate = (next: PageKey) => {
-    if (next === 'Attendance' && profileLocked) {
-      setLockedFeature('Attendance')
-      return
+    if (profileLocked) {
+      const lockedMap: Record<string, string> = {
+        Attendance: 'Attendance',
+        Insights: 'Attendance Analytics',
+      }
+      if (lockedMap[next]) {
+        setLockedFeature(lockedMap[next])
+        return
+      }
     }
 
     setActive(next)
@@ -236,7 +243,7 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
 
   const handleExportTrigger = () => {
     if (profileLocked) {
-      setLockedFeature('Download Reports')
+      setLockedFeature('Attendance Reports')
       return
     }
 
@@ -250,6 +257,14 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
     }
 
     setShowModal(true)
+  }
+
+  const handleAttendanceTabClick = () => {
+    if (profileLocked) {
+      setLockedFeature('Attendance')
+      return
+    }
+    setActive('Attendance')
   }
 
   // Timetable scheduling check-in parsing
@@ -516,64 +531,88 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
         {active === 'Overview' && (
           <>
             <section className="stats-grid" style={{ marginTop: '24px' }}>
-              <article className="glass-card completeness-card">
-                <div className="section-heading" style={{ marginBottom: '8px' }}>
-                  <div>
-                    <span className="section-kicker">PROFILE</span>
-                    <h2>Profile completion</h2>
-                  </div>
-                  <span className="mini-chip" style={{ background: 'rgba(103,107,255,0.12)', color: '#575bef' }}>{completionPercentage}%</span>
-                </div>
-                <div className="completeness-bar-container">
-                  <div className="completeness-bar-fill" style={{ width: `${completionPercentage}%` }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--muted)', fontSize: '12px' }}>
-                  <span>{completionPercentage < 100 ? 'Keep going to unlock more features.' : 'Everything is unlocked.'}</span>
-                  <button className="text-button" onClick={() => setShowProfilePanel(true)} type="button">Complete profile</button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Missing information</span>
-                  {missingFields.length ? (
-                    <ul className="summary-list" style={{ gap: '6px' }}>
-                      {missingFields.map((field) => (
-                        <li key={field} style={{ justifyContent: 'flex-start', gap: '8px' }}>
-                          <Lock size={12} />
-                          <span>{field}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="helper-text" style={{ margin: 0 }}>Your academic profile is fully ready.</p>
-                  )}
-                </div>
-              </article>
+              {loading ? (
+                <>
+                  <article className="glass-card completeness-card">
+                    <Skeleton style={{ width: 120, height: 14, borderRadius: 4, marginBottom: 8 }} />
+                    <Skeleton style={{ width: 80, height: 20, borderRadius: 4, marginBottom: 12 }} />
+                    <Skeleton style={{ width: '100%', height: 8, borderRadius: 4, marginBottom: 12 }} />
+                    <Skeleton style={{ width: '100%', height: 12, borderRadius: 4 }} />
+                  </article>
+                  <StatCardSkeleton />
+                  <StatCardSkeleton />
+                </>
+              ) : (
+                <>
+                  <article className="glass-card completeness-card">
+                    <div className="section-heading" style={{ marginBottom: '8px' }}>
+                      <div>
+                        <span className="section-kicker">PROFILE</span>
+                        <h2>Profile completion</h2>
+                      </div>
+                      <span className="mini-chip" style={{ background: 'rgba(103,107,255,0.12)', color: '#575bef' }}>{completionPercentage}%</span>
+                    </div>
+                    <div className="completeness-bar-container">
+                      <div className="completeness-bar-fill" style={{ width: `${completionPercentage}%` }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+                      <span>{completionPercentage < 100 ? 'Keep going to unlock more features.' : 'Everything is unlocked.'}</span>
+                      <button className="text-button" onClick={() => setShowProfilePanel(true)} type="button">Complete profile</button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Missing information</span>
+                      {missingFields.length ? (
+                        <ul className="summary-list" style={{ gap: '6px' }}>
+                          {missingFields.map((field) => (
+                            <li key={field} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+                              <Lock size={12} />
+                              <span>{field}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="helper-text" style={{ margin: 0 }}>Your academic profile is fully ready.</p>
+                      )}
+                    </div>
+                  </article>
 
-              <StatCard
-                icon={Target}
-                label="Overall attendance"
-                value={attendancePercentage}
-                detail="Live sync active"
-                color="indigo"
-              />
-              <StatCard
-                icon={CalendarDays}
-                label="Sessions Attended"
-                value={`${attendedCount} / ${totalCount}`}
-                detail="Updated instantly"
-                color="cyan"
-              />
-              <StatCard
-                icon={TrendingUp}
-                label="Current Streak"
-                value={`${streak} days`}
-                detail="Consecutive presents"
-                color="violet"
-              />
+                  <StatCard
+                    icon={Target}
+                    label="Overall attendance"
+                    value={attendancePercentage}
+                    detail="Live sync active"
+                    color="indigo"
+                  />
+                  <StatCard
+                    icon={CalendarDays}
+                    label="Sessions Attended"
+                    value={`${attendedCount} / ${totalCount}`}
+                    detail="Updated instantly"
+                    color="cyan"
+                  />
+                  <StatCard
+                    icon={TrendingUp}
+                    label="Current Streak"
+                    value={`${streak} days`}
+                    detail="Consecutive presents"
+                    color="violet"
+                  />
+                </>
+              )}
             </section>
 
             <section className="dashboard-grid">
-              <WeeklyChart weeklyTrend={weeklyTrend} hasData={attendance.length > 0} />
-              <NextClassCard nextClass={nextClass} onMarkClick={handleMarkAttendanceTrigger} />
+              {loading ? (
+                <>
+                  <ChartSkeleton />
+                  <NextClassSkeleton />
+                </>
+              ) : (
+                <>
+                  <WeeklyChart weeklyTrend={weeklyTrend} hasData={attendance.length > 0} />
+                  <NextClassCard nextClass={nextClass} onMarkClick={handleMarkAttendanceTrigger} />
+                </>
+              )}
             </section>
 
             <section className="lower-grid">
@@ -583,7 +622,15 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
                 onViewAllClick={() => handleNavigate('Attendance')}
                 onExportClick={handleExportTrigger}
               />
-              <MomentCard attendancePercentage={attendancePercentage} streak={streak} />
+              {loading ? (
+                <div className="glass-card moment-card" style={{ minHeight: 270, opacity: 0.6 }}>
+                  <Skeleton style={{ width: '60%', height: 24, borderRadius: 4, marginBottom: 12 }} />
+                  <Skeleton style={{ width: '80%', height: 12, borderRadius: 4, marginBottom: 8 }} />
+                  <Skeleton style={{ width: '40%', height: 12, borderRadius: 4 }} />
+                </div>
+              ) : (
+                <MomentCard attendancePercentage={attendancePercentage} streak={streak} />
+              )}
             </section>
           </>
         )}
@@ -616,7 +663,7 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
           />
         )}
 
-        {/* Analytics Insights Tab */}
+        {/* Attendance Analytics Tab */}
         {active === 'Insights' && (
           <InsightsPanel
             hasData={attendance.length > 0}
@@ -699,7 +746,7 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
                 Complete Profile
               </button>
               <button className="auth-secondary" style={{ flex: 1 }} onClick={() => setLockedFeature(null)}>
-                Keep exploring
+                Maybe Later
               </button>
             </div>
           </div>

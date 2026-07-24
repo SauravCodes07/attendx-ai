@@ -145,24 +145,22 @@ export const getUserProfile = async () => {
 
 /**
  * Check if a profile is "complete" enough to skip the onboarding screen (First Login check).
- * Only requires the minimal onboarding fields.
+ * Only requires the minimal onboarding fields: full_name, branch, year, semester.
  */
 export const isProfileComplete = (profile: Profile | null): boolean => {
   if (!profile) return false
   return Boolean(
     profile.full_name?.trim() &&
     profile.branch?.trim() &&
-    profile.department?.trim() &&
     profile.year?.trim() &&
     profile.semester?.trim()
   )
 }
 
-/** Fields counted toward 100% profile completion (11 total). */
+/** Fields counted toward 100% profile completion (10 total). */
 export const PROFILE_COMPLETENESS_FIELDS = [
   { key: 'full_name' as const, label: 'Full Name' },
   { key: 'branch' as const, label: 'Branch' },
-  { key: 'department' as const, label: 'Department' },
   { key: 'year' as const, label: 'Year' },
   { key: 'semester' as const, label: 'Semester' },
   { key: 'phone' as const, label: 'Phone Number' },
@@ -205,5 +203,32 @@ export const getOptionalMissingFields = (profile: Profile | null): string[] => {
     const value = profile[key]
     return !value || value.toString().trim() === ''
   }).map(({ label }) => label)
+}
+
+/**
+ * Ensures the 'avatars' storage bucket exists.
+ * Creates it if missing so profile photo uploads never fail due to bucket name issues.
+ */
+export const ensureAvatarBucket = async (): Promise<{ ready: boolean; error?: string }> => {
+  if (!isSupabaseConfigured) return { ready: false, error: 'Supabase is not configured.' }
+
+  try {
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets()
+    if (listError) return { ready: false, error: listError.message }
+
+    const exists = buckets.some((bucket: any) => bucket.name === 'avatars')
+    if (exists) return { ready: true }
+
+    const { error: createError } = await supabase.storage.createBucket('avatars', {
+      public: true,
+      fileSizeLimit: 1024 * 1024 * 2, // 2MB
+      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
+    })
+
+    if (createError) return { ready: false, error: createError.message }
+    return { ready: true }
+  } catch (err: any) {
+    return { ready: false, error: err.message || 'Failed to ensure avatar bucket exists.' }
+  }
 }
 

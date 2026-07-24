@@ -138,7 +138,7 @@ export default function ProfilePanel({
     }
   }, [profileForm, persistProfile])
 
-  const updateField = (key: keyof typeof profileForm, value: string) => {
+  const updateField = (key: keyof Profile, value: string) => {
     setProfileForm((prev) => ({ ...prev, [key]: value }))
   }
 

@@ -152,18 +152,11 @@ export default function AttendanceTable({
             </div>
           </div>
         </>
-      ) : (
-        <EmptyState
-          icon={CalendarX}
-          title="No attendance data found"
-          description={
-            attendance.length === 0
-              ? 'You have not added any attendance records yet.'
-              : 'No records match your search query and filters.'
-          }
-          actionLabel={attendance.length === 0 ? 'Add Attendance Record' : undefined}
-          onAction={attendance.length === 0 ? onAddClick : undefined}
-        />
+        ) : (
+        <div style={{ padding: '24px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--ink)', marginBottom: '6px' }}>0%</div>
+          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>No attendance records yet</div>
+        </div>
       )}
 
       {attendance.length > 0 && (
