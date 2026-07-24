@@ -32,9 +32,10 @@ type PageKey = 'Overview' | 'Attendance' | 'Insights' | 'Timetable' | 'Notificat
 interface DashboardPageProps {
   profile: Profile
   onLogout: () => void
+  onProfileChange?: (profile: Profile) => void
 }
 
-export default function DashboardPage({ profile, onLogout }: DashboardPageProps) {
+export default function DashboardPage({ profile, onLogout, onProfileChange }: DashboardPageProps) {
   const [active, setActive] = useState<PageKey>('Overview')
   const [profileState, setProfileState] = useState(profile)
   const [isDark, setIsDark] = useState(profile.dark_mode)
@@ -173,7 +174,11 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
       throw error
     }
 
-    setProfileState((prev) => ({ ...prev, ...updatedFields }))
+    setProfileState((prev) => {
+      const next = { ...prev, ...updatedFields }
+      onProfileChange?.(next)
+      return next
+    })
   }
 
   const handlePasswordChange = async () => {
@@ -219,10 +224,6 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
   const completionPercentage = useMemo(() => calculateCompletionPercentage(profileState), [profileState])
   const missingFields = useMemo(() => getMissingFields(profileState), [profileState])
   const profileLocked = completionPercentage < 100
-
-  const handleLockedFeature = (feature: string) => {
-    setLockedFeature(feature)
-  }
 
   const handleNavigate = (next: PageKey) => {
     if (next === 'Attendance' && profileLocked) {
@@ -481,6 +482,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
         attendanceCount={attendance.length}
         unreadCount={unreadCount}
         isAdmin={isAdmin}
+        profileLocked={profileLocked}
       />
 
       <main className="content">
@@ -533,7 +535,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
                   <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Missing information</span>
                   {missingFields.length ? (
                     <ul className="summary-list" style={{ gap: '6px' }}>
-                      {missingFields.slice(0, 5).map((field) => (
+                      {missingFields.map((field) => (
                         <li key={field} style={{ justifyContent: 'flex-start', gap: '8px' }}>
                           <Lock size={12} />
                           <span>{field}</span>
@@ -578,7 +580,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
               <AttendanceHistory
                 attendance={attendance.slice(0, 5)}
                 loading={loading}
-                onViewAllClick={() => setActive('Attendance')}
+                onViewAllClick={() => handleNavigate('Attendance')}
                 onExportClick={handleExportTrigger}
               />
               <MomentCard attendancePercentage={attendancePercentage} streak={streak} />
@@ -610,7 +612,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
             }}
             onEdit={handleEditRecordTrigger}
             onDelete={handleDeleteRecord}
-            onExportClick={() => setShowExportModal(true)}
+            onExportClick={handleExportTrigger}
           />
         )}
 
@@ -624,6 +626,8 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
             streak={streak}
             unreadCount={unreadCount}
             timetableLength={timetable.length}
+            profileLocked={profileLocked}
+            onCompleteProfile={() => setShowProfilePanel(true)}
           />
         )}
 
@@ -641,7 +645,13 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
             profile={profileState}
             onProfileUpdate={handleProfileUpdate}
             onPasswordChange={handlePasswordChange}
-            onExportTrigger={handleExport}
+            onExportTrigger={(format, scope) => {
+              if (profileLocked) {
+                setLockedFeature('Download Reports')
+                return
+              }
+              handleExport(format, scope)
+            }}
           />
         )}
 
@@ -677,13 +687,13 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
 
       {lockedFeature && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setLockedFeature(null)}>
-          <div className="attendance-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="attendance-modal locked-feature-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
             <div className="modal-icon" style={{ background: 'linear-gradient(135deg, rgba(103,107,255,0.16), rgba(67,199,146,0.14))' }}>
               <Lock size={20} />
             </div>
             <div className="auth-badge" style={{ marginBottom: '8px' }}><Sparkles size={14} /> Premium unlock</div>
-            <h2>Complete your academic profile</h2>
-            <p>Finish your academic profile to unlock {lockedFeature.toLowerCase()} and enjoy the full AttendX experience.</p>
+            <h2>Complete your academic profile to unlock {lockedFeature}.</h2>
+            <p>Fill in the remaining profile details to access this feature. Your dashboard stays open while you finish at your own pace.</p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
               <button className="primary-button" style={{ flex: 1 }} onClick={() => { setLockedFeature(null); setShowProfilePanel(true) }}>
                 Complete Profile
@@ -711,7 +721,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
           setSearch={setSearch}
           attendance={attendance}
           setActiveTab={(tab) => {
-            setActive(tab)
+            handleNavigate(tab as PageKey)
             setShowSearch(false)
           }}
         />
@@ -725,10 +735,20 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
           onLogout={onLogout}
           onPasswordChange={handlePasswordChange}
           onExportClick={() => {
+            if (profileLocked) {
+              setLockedFeature('Download Reports')
+              return
+            }
             setShowProfilePanel(false)
             setShowExportModal(true)
           }}
-          onActiveTabChange={setActive}
+          onActiveTabChange={(tab) => {
+            if (tab === 'Attendance') {
+              handleNavigate('Attendance')
+            } else {
+              setActive(tab)
+            }
+          }}
           attendancePercentage={attendancePercentage}
           streak={streak}
           isDark={isDark}
@@ -739,11 +759,12 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
       {showMenu && (
         <MobileDrawer
           active={active}
-          setActive={setActive}
+          onNavigate={handleNavigate}
           onClose={() => setShowMenu(false)}
           onLogout={onLogout}
           isAdmin={isAdmin}
           profile={profileState}
+          profileLocked={profileLocked}
         />
       )}
     </div>

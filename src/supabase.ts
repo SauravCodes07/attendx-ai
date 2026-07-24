@@ -158,47 +158,52 @@ export const isProfileComplete = (profile: Profile | null): boolean => {
   )
 }
 
+/** Fields counted toward 100% profile completion (11 total). */
+export const PROFILE_COMPLETENESS_FIELDS = [
+  { key: 'full_name' as const, label: 'Full Name' },
+  { key: 'branch' as const, label: 'Branch' },
+  { key: 'department' as const, label: 'Department' },
+  { key: 'year' as const, label: 'Year' },
+  { key: 'semester' as const, label: 'Semester' },
+  { key: 'phone' as const, label: 'Phone Number' },
+  { key: 'dob' as const, label: 'Date of Birth' },
+  { key: 'address' as const, label: 'Address' },
+  { key: 'gender' as const, label: 'Gender' },
+  { key: 'roll_number' as const, label: 'Roll Number' },
+  { key: 'emergency_contact' as const, label: 'Emergency Contact' },
+]
+
 /**
- * Calculates the profile completeness percentage based on 12 key fields.
+ * Calculates profile completeness percentage (0–100) from 11 key fields.
  */
 export const calculateCompletionPercentage = (profile: Profile | null): number => {
   if (!profile) return 0
-  const fields = [
-    profile.full_name,
-    profile.branch,
-    profile.department,
-    profile.year,
-    profile.semester,
-    profile.phone,
-    profile.dob,
-    profile.address,
-    profile.gender,
-    profile.roll_number,
-    profile.emergency_contact,
-    profile.college_email
-  ]
-  const filledCount = fields.filter(field => field && field.toString().trim() !== '').length
-  return Math.round((filledCount / fields.length) * 100)
+  const filledCount = PROFILE_COMPLETENESS_FIELDS.filter(({ key }) => {
+    const value = profile[key]
+    return value !== null && value !== undefined && value.toString().trim() !== ''
+  }).length
+  return Math.round((filledCount / PROFILE_COMPLETENESS_FIELDS.length) * 100)
 }
 
 /**
- * Returns a list of missing profile fields with human-readable labels.
+ * Returns human-readable labels for unfilled completeness fields.
  */
 export const getMissingFields = (profile: Profile | null): string[] => {
-  if (!profile) return []
-  const missing: string[] = []
-  if (!profile.full_name?.trim()) missing.push('Full Name')
-  if (!profile.branch?.trim()) missing.push('Branch')
-  if (!profile.department?.trim()) missing.push('Department')
-  if (!profile.year?.trim()) missing.push('Year')
-  if (!profile.semester?.trim()) missing.push('Semester')
-  if (!profile.phone?.trim()) missing.push('Phone Number')
-  if (!profile.dob?.trim()) missing.push('Date of Birth')
-  if (!profile.address?.trim()) missing.push('Address')
-  if (!profile.gender?.trim()) missing.push('Gender')
-  if (!profile.roll_number?.trim()) missing.push('Roll Number')
-  if (!profile.emergency_contact?.trim()) missing.push('Emergency Contact')
-  if (!profile.college_email?.trim()) missing.push('College Email')
-  return missing
+  if (!profile) return PROFILE_COMPLETENESS_FIELDS.map(({ label }) => label)
+  return PROFILE_COMPLETENESS_FIELDS.filter(({ key }) => {
+    const value = profile[key]
+    return !value || value.toString().trim() === ''
+  }).map(({ label }) => label)
+}
+
+/** Optional fields shown after minimal onboarding is complete. */
+export const OPTIONAL_PROFILE_FIELDS = PROFILE_COMPLETENESS_FIELDS.slice(5)
+
+export const getOptionalMissingFields = (profile: Profile | null): string[] => {
+  if (!profile) return OPTIONAL_PROFILE_FIELDS.map(({ label }) => label)
+  return OPTIONAL_PROFILE_FIELDS.filter(({ key }) => {
+    const value = profile[key]
+    return !value || value.toString().trim() === ''
+  }).map(({ label }) => label)
 }
 

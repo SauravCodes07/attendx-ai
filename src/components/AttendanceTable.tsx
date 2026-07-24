@@ -2,6 +2,7 @@ import React from 'react'
 import { Plus, ArrowDownToLine, CalendarX } from 'lucide-react'
 import type { AttendanceRecord } from '../types'
 import EmptyState from './EmptyState'
+import { PremiumInput, PremiumSelect } from './PremiumInput'
 
 interface AttendanceTableProps {
   pagedAttendance: AttendanceRecord[]
@@ -51,59 +52,31 @@ export default function AttendanceTable({
       </div>
 
       <div className="filters-row">
-        <label className="control-group">
-          <span>Search</span>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by subject or code"
-            style={{
-              padding: '10px 12px',
-              borderRadius: '8px',
-              background: 'rgba(247,248,252,.9)',
-              border: '1px solid var(--line)',
-            }}
-          />
-        </label>
-        <label className="control-group">
-          <span>Status</span>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            style={{
-              padding: '10px 12px',
-              borderRadius: '8px',
-              background: 'rgba(247,248,252,.9)',
-              border: '1px solid var(--line)',
-              color: 'inherit',
-              outline: 'none',
-            }}
-          >
-            <option value="all">All</option>
-            <option value="present">Present</option>
-            <option value="absent">Absent</option>
-            <option value="leave">Leave</option>
-          </select>
-        </label>
-        <label className="control-group">
-          <span>Sort</span>
-          <select
-            value={sortKey}
-            onChange={(event) => setSortKey(event.target.value as 'date' | 'subject' | 'status')}
-            style={{
-              padding: '10px 12px',
-              borderRadius: '8px',
-              background: 'rgba(247,248,252,.9)',
-              border: '1px solid var(--line)',
-              color: 'inherit',
-              outline: 'none',
-            }}
-          >
-            <option value="date">Date</option>
-            <option value="subject">Subject</option>
-            <option value="status">Status</option>
-          </select>
-        </label>
+        <PremiumInput
+          label="Search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search by subject or code"
+        />
+        <PremiumSelect
+          label="Status"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+        >
+          <option value="all">All</option>
+          <option value="present">Present</option>
+          <option value="absent">Absent</option>
+          <option value="leave">Leave</option>
+        </PremiumSelect>
+        <PremiumSelect
+          label="Sort"
+          value={sortKey}
+          onChange={(event) => setSortKey(event.target.value as 'date' | 'subject' | 'status')}
+        >
+          <option value="date">Date</option>
+          <option value="subject">Subject</option>
+          <option value="status">Status</option>
+        </PremiumSelect>
       </div>
 
       {pagedAttendance.length > 0 ? (

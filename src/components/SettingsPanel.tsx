@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import type { Profile, ThemePreference } from '../types'
 import { useTheme } from '../hooks/useTheme'
+import { PremiumSelect } from './PremiumInput'
 
 interface SettingsPanelProps {
   profile: Profile
@@ -106,25 +107,16 @@ export default function SettingsPanel({
           <h3 style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
             <Globe size={16} /> Language & Region
           </h3>
-          <label className="control-group">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              style={{
-                padding: '12px',
-                borderRadius: '10px',
-                background: 'rgba(247,248,252,.9)',
-                border: '1px solid var(--line)',
-                color: 'inherit',
-                outline: 'none',
-              }}
-            >
-              <option value="en">English (US)</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-            </select>
-          </label>
+          <PremiumSelect
+            label="Language"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+          >
+            <option value="en">English (US)</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </PremiumSelect>
         </div>
 
         <hr style={{ border: 0, borderTop: '1px solid var(--line)', margin: 0 }} />

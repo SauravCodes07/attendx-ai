@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { X, ShieldCheck, BookOpen, MapPin, Check, Plus } from 'lucide-react'
 import type { TimetableItem, Subject } from '../types'
+import { PremiumInput, PremiumSelect, PremiumDatePicker } from './PremiumInput'
 
 interface MarkAttendanceModalProps {
   nextClass: TimetableItem | null
@@ -31,7 +32,6 @@ export default function MarkAttendanceModal({
   onSaveManualRecord,
   editingRecord = null,
 }: MarkAttendanceModalProps) {
-  // If editing a record or clicking "Add record" from the table list
   const isManualMode = editingRecord !== null || !nextClass
 
   const [formState, setFormState] = useState({
@@ -111,87 +111,50 @@ export default function MarkAttendanceModal({
         ) : (
           <form onSubmit={handleManualSubmit} style={{ display: 'grid', gap: '14px', marginTop: '16px' }}>
             {!editingRecord && (
-              <label className="control-group">
-                <span>Select Subject</span>
-                <select
-                  value={formState.subjectId}
-                  onChange={(e) => setFormState({ ...formState, subjectId: e.target.value })}
-                  style={{
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'rgba(247,248,252,.9)',
-                    border: '1px solid var(--line)',
-                    color: 'inherit',
-                    outline: 'none',
-                  }}
-                  required
-                >
-                  {subjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name} ({sub.code})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <PremiumSelect
+                label="Subject"
+                value={formState.subjectId}
+                onChange={(e) => setFormState({ ...formState, subjectId: e.target.value })}
+                required
+              >
+                {subjects.map((sub) => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.name} ({sub.code})
+                  </option>
+                ))}
+              </PremiumSelect>
             )}
 
             <div className="settings-grid">
-              <label className="control-group">
-                <span>Status</span>
-                <select
-                  value={formState.status}
-                  onChange={(e) =>
-                    setFormState({
-                      ...formState,
-                      status: e.target.value as 'present' | 'absent' | 'leave',
-                    })
-                  }
-                  style={{
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'rgba(247,248,252,.9)',
-                    border: '1px solid var(--line)',
-                    color: 'inherit',
-                    outline: 'none',
-                  }}
-                >
-                  <option value="present">Present</option>
-                  <option value="absent">Absent</option>
-                  <option value="leave">Leave</option>
-                </select>
-              </label>
+              <PremiumSelect
+                label="Status"
+                value={formState.status}
+                onChange={(e) =>
+                  setFormState({
+                    ...formState,
+                    status: e.target.value as 'present' | 'absent' | 'leave',
+                  })
+                }
+              >
+                <option value="present">Present</option>
+                <option value="absent">Absent</option>
+                <option value="leave">Leave</option>
+              </PremiumSelect>
 
-              <label className="control-group">
-                <span>Date</span>
-                <input
-                  type="date"
-                  value={formState.date}
-                  onChange={(e) => setFormState({ ...formState, date: e.target.value })}
-                  required
-                  style={{
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'rgba(247,248,252,.9)',
-                    border: '1px solid var(--line)',
-                  }}
-                />
-              </label>
+              <PremiumDatePicker
+                label="Date"
+                value={formState.date}
+                onChange={(e) => setFormState({ ...formState, date: e.target.value })}
+                required
+              />
             </div>
 
-            <label className="control-group">
-              <span>Remarks / Location Coordinates</span>
-              <input
-                value={formState.notes}
-                onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
-                placeholder="Lecture Hall 3, smart beacon verified"
-                style={{
-                  padding: '12px',
-                  borderRadius: '12px',
-                  background: 'rgba(247,248,252,.9)',
-                  border: '1px solid var(--line)',
-                }}
-              />
-            </label>
+            <PremiumInput
+              label="Remarks"
+              value={formState.notes}
+              onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
+              placeholder="Lecture Hall 3, smart beacon verified"
+            />
 
             <button className="primary-button modal-submit" type="submit" style={{ marginTop: '8px' }}>
               <Plus size={18} /> {editingRecord ? 'Save Changes' : 'Add Record'}

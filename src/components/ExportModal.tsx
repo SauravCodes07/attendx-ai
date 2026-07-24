@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { X, Download } from 'lucide-react'
+import { PremiumSelect } from './PremiumInput'
 
 interface ExportModalProps {
   onClose: () => void
@@ -39,56 +40,36 @@ export default function ExportModal({ onClose, onExport, isAdmin }: ExportModalP
         </p>
 
         <div className="filters-row" style={{ marginTop: '16px', gap: '12px' }}>
-          <label className="control-group">
-            <span>Format</span>
-            <select
-              value={exportFormat}
-              onChange={(e) => setExportFormat(e.target.value as 'csv' | 'json' | 'pdf' | 'xlsx')}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '8px',
-                background: 'rgba(247,248,252,.9)',
-                border: '1px solid var(--line)',
-                color: 'inherit',
-                outline: 'none',
-              }}
-            >
-              <option value="csv">CSV</option>
-              <option value="json">JSON</option>
-              <option value="pdf">PDF</option>
-              <option value="xlsx">XLSX</option>
-            </select>
-          </label>
-          <label className="control-group">
-            <span>Scope</span>
-            <select
-              value={exportScope}
-              onChange={(e) => setExportScope(e.target.value)}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '8px',
-                background: 'rgba(247,248,252,.9)',
-                border: '1px solid var(--line)',
-                color: 'inherit',
-                outline: 'none',
-              }}
-            >
-              <option value="today">Today</option>
-              <option value="week">This week</option>
-              <option value="month">Month</option>
-              <option value="semester">Semester</option>
-              <option value="all">Complete history</option>
-              {isAdmin && (
-                <>
-                  <option value="student">Individual student</option>
-                  <option value="class">Class-wise</option>
-                  <option value="subject">Subject-wise</option>
-                  <option value="department">Department</option>
-                  <option value="semester-report">Semester report</option>
-                </>
-              )}
-            </select>
-          </label>
+          <PremiumSelect
+            label="Format"
+            value={exportFormat}
+            onChange={(e) => setExportFormat(e.target.value as 'csv' | 'json' | 'pdf' | 'xlsx')}
+          >
+            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
+            <option value="pdf">PDF</option>
+            <option value="xlsx">XLSX</option>
+          </PremiumSelect>
+          <PremiumSelect
+            label="Scope"
+            value={exportScope}
+            onChange={(e) => setExportScope(e.target.value)}
+          >
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">Month</option>
+            <option value="semester">Semester</option>
+            <option value="all">Complete history</option>
+            {isAdmin && (
+              <>
+                <option value="student">Individual student</option>
+                <option value="class">Class-wise</option>
+                <option value="subject">Subject-wise</option>
+                <option value="department">Department</option>
+                <option value="semester-report">Semester report</option>
+              </>
+            )}
+          </PremiumSelect>
         </div>
 
         <div className="export-options" style={{ marginTop: '20px' }}>

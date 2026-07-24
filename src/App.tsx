@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
-import { ArrowRight, Sparkles, UploadCloud, User } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import AuthPage from './pages/AuthPage'
 import DashboardPage from './pages/DashboardPage'
 import LandingPage from './pages/LandingPage'
 import { supabase, ensureProfile, isProfileComplete } from './supabase'
 import { useTheme } from './hooks/useTheme'
-import { PremiumInput, PremiumSelect } from './components/PremiumInput'
+import { PremiumInput, PremiumSelect, PremiumFileUpload } from './components/PremiumInput'
 import type { Profile } from './types'
 
 type ViewMode = 'landing' | 'auth' | 'dashboard' | 'profile-setup'
@@ -31,7 +31,6 @@ function App() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileError, setProfileError] = useState('')
   const [uploadState, setUploadState] = useState('')
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Load session with a timeout safety to prevent infinite loading screen
   useEffect(() => {
@@ -142,8 +141,8 @@ function App() {
   }
 
   // Handle uploading custom profile photo during signup wizard
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement> | File) => {
+    const file = e instanceof File ? e : e.target.files?.[0]
     if (!file || !profile?.id) return
 
     setUploadState('Uploading photo...')
@@ -256,15 +255,21 @@ function App() {
     }
 
     if (view === 'dashboard' && profile) {
-      return <DashboardPage profile={profile} onLogout={handleLogout} />
+      return (
+        <DashboardPage
+          profile={profile}
+          onLogout={handleLogout}
+          onProfileChange={setProfile}
+        />
+      )
     }
 
     if (view === 'profile-setup' && profile) {
       return (
-        <div className="app auth-shell">
+        <div className={`app auth-shell ${isDark ? 'dark' : ''}`}>
           <div className="ambient ambient-one" />
           <div className="ambient ambient-two" />
-          <div className="auth-card" style={{ maxWidth: '480px' }}>
+          <div className="auth-card onboarding-card" style={{ maxWidth: '480px' }}>
             <div className="auth-card__hero">
               <div className="logo" aria-label="AttendX AI">
                 <div className="logo-mark">
@@ -277,57 +282,25 @@ function App() {
                 </span>
               </div>
               <div className="auth-badge">
-                <Sparkles size={14} /> Progressive onboarding
+                <Sparkles size={14} /> Quick setup
               </div>
               <h1 style={{ fontSize: '24px', letterSpacing: '-0.8px', margin: '12px 0 6px 0' }}>
-                Set up your basics
+                Welcome — just the basics
               </h1>
-              <p>Only the essentials now. You can finish the rest later from your profile.</p>
+              <p>Takes under 30 seconds. Everything else can wait until you&apos;re in the dashboard.</p>
             </div>
 
             {profileError ? <div className="auth-message error">{profileError}</div> : null}
 
-            <div className="auth-form" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '4px' }}>
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '16px',
-                    background: 'rgba(103,107,255,0.06)',
-                    border: '1px dashed var(--line)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    cursor: 'pointer',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {profileForm.avatar_url ? (
-                    <img src={profileForm.avatar_url} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <User size={20} style={{ color: 'var(--muted)' }} />
-                  )}
-                </div>
-                <div>
-                  <button
-                    type="button"
-                    className="auth-secondary"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ fontSize: '11px', padding: '6px 12px' }}
-                  >
-                    Upload Avatar (Optional)
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={handleAvatarUpload}
-                  />
-                  {uploadState && <p className="helper-text" style={{ fontSize: '10px', marginTop: '4px' }}>{uploadState}</p>}
-                </div>
-              </div>
+            <div className="auth-form onboarding-form">
+              <PremiumFileUpload
+                previewUrl={profileForm.avatar_url || null}
+                initials={profileForm.full_name?.slice(0, 2).toUpperCase() || 'U'}
+                onFileSelect={(file) => void handleAvatarUpload(file)}
+                hint="Skip if you prefer — add later from profile"
+                optional
+              />
+              {uploadState && <p className="helper-text onboarding-upload-status">{uploadState}</p>}
 
               <PremiumInput
                 label="Full name"
@@ -335,16 +308,10 @@ function App() {
                 onChange={(event) => setProfileForm({ ...profileForm, full_name: event.target.value })}
                 placeholder="e.g. Ava Thompson"
                 required
+                autoFocus
               />
 
-              <div className="settings-grid" style={{ gap: '12px' }}>
-                <PremiumInput
-                  label="Department"
-                  value={profileForm.department}
-                  onChange={(event) => setProfileForm({ ...profileForm, department: event.target.value })}
-                  placeholder="e.g. CSE"
-                  required
-                />
+              <div className="settings-grid onboarding-grid">
                 <PremiumInput
                   label="Branch"
                   value={profileForm.branch}
@@ -352,11 +319,18 @@ function App() {
                   placeholder="e.g. Computer Science"
                   required
                 />
+                <PremiumInput
+                  label="Department"
+                  value={profileForm.department}
+                  onChange={(event) => setProfileForm({ ...profileForm, department: event.target.value })}
+                  placeholder="e.g. CSE"
+                  required
+                />
               </div>
 
-              <div className="settings-grid" style={{ gap: '12px' }}>
+              <div className="settings-grid onboarding-grid">
                 <PremiumSelect
-                  label="Academic Year"
+                  label="Year"
                   value={profileForm.year}
                   onChange={(event) => setProfileForm({ ...profileForm, year: event.target.value })}
                 >
@@ -383,9 +357,9 @@ function App() {
                 className="primary-button auth-submit"
                 disabled={profileSaving}
                 onClick={handleProfileSave}
-                style={{ marginTop: '8px', height: '48px' }}
+                type="button"
               >
-                {profileSaving ? 'Saving...' : 'Enter Dashboard'} <ArrowRight size={16} />
+                {profileSaving ? 'Saving...' : 'Go to Dashboard'} <ArrowRight size={16} />
               </button>
             </div>
           </div>
@@ -406,7 +380,7 @@ function App() {
         onLogout={handleLogout}
       />
     )
-  }, [loading, profile, view, isAuthenticated, profileForm, profileSaving, profileError, uploadState, handleLogout])
+  }, [loading, profile, view, isAuthenticated, profileForm, profileSaving, profileError, uploadState, handleLogout, isDark])
 
   return mainView
 }

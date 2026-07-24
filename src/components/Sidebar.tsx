@@ -11,7 +11,7 @@ import {
   ChevronRight,
   CircleHelp,
   MoreHorizontal,
-  Home,
+  Lock,
 } from 'lucide-react'
 import type { Profile } from '../types'
 
@@ -25,6 +25,7 @@ interface SidebarProps {
   attendanceCount: number
   unreadCount: number
   isAdmin: boolean
+  profileLocked?: boolean
 }
 
 type NavItem = { label: PageKey; icon: any }
@@ -37,6 +38,7 @@ export default function Sidebar({
   attendanceCount,
   unreadCount,
   isAdmin,
+  profileLocked = false,
 }: SidebarProps) {
   const navigation: NavItem[] = [
     { label: 'Overview', icon: Grid2X2 },
@@ -78,7 +80,8 @@ export default function Sidebar({
           >
             <Icon size={19} />
             <span>{label}</span>
-            {label === 'Attendance' && attendanceCount > 0 && <em>{attendanceCount}</em>}
+            {label === 'Attendance' && profileLocked && <Lock size={13} style={{ marginLeft: 'auto', opacity: 0.45 }} />}
+            {label === 'Attendance' && !profileLocked && attendanceCount > 0 && <em>{attendanceCount}</em>}
             {label === 'Notifications' && unreadCount > 0 && (
               <em style={{ background: '#f2a853' }}>{unreadCount}</em>
             )}
