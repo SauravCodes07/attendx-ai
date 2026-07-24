@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { supabase } from '../supabase'
+import { calculateCompletionPercentage, getMissingFields, supabase } from '../supabase'
 import type { AttendanceRecord, NotificationItem, Profile, Subject, TimetableItem } from '../types'
 
 // Subcomponents imports
@@ -25,7 +25,7 @@ import Toast from '../components/Toast'
 import AdminPanel from '../components/AdminPanel'
 
 // Lucide icon helper imports
-import { Target, CalendarDays, TrendingUp, Check } from 'lucide-react'
+import { Target, CalendarDays, TrendingUp, Check, Lock, Sparkles } from 'lucide-react'
 
 type PageKey = 'Overview' | 'Attendance' | 'Insights' | 'Timetable' | 'Notifications' | 'Settings' | 'Admin'
 
@@ -45,6 +45,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
   const [showProfilePanel, setShowProfilePanel] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [lockedFeature, setLockedFeature] = useState<string | null>(null)
 
   // Toast status states
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -214,6 +215,41 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
   const unreadCount = useMemo(() => {
     return notifications.filter((item) => item.unread).length
   }, [notifications])
+
+  const completionPercentage = useMemo(() => calculateCompletionPercentage(profileState), [profileState])
+  const missingFields = useMemo(() => getMissingFields(profileState), [profileState])
+  const profileLocked = completionPercentage < 100
+
+  const handleLockedFeature = (feature: string) => {
+    setLockedFeature(feature)
+  }
+
+  const handleNavigate = (next: PageKey) => {
+    if (next === 'Attendance' && profileLocked) {
+      setLockedFeature('Attendance')
+      return
+    }
+
+    setActive(next)
+  }
+
+  const handleExportTrigger = () => {
+    if (profileLocked) {
+      setLockedFeature('Download Reports')
+      return
+    }
+
+    setShowExportModal(true)
+  }
+
+  const handleMarkAttendanceTrigger = () => {
+    if (profileLocked) {
+      setLockedFeature('Mark Attendance')
+      return
+    }
+
+    setShowModal(true)
+  }
 
   // Timetable scheduling check-in parsing
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' })
@@ -439,7 +475,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
 
       <Sidebar
         active={active}
-        setActive={setActive}
+        setActive={handleNavigate}
         profile={profileState}
         onLogout={onLogout}
         attendanceCount={attendance.length}
@@ -456,7 +492,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
           toggleTheme={toggleTheme}
           onSearchClick={() => setShowSearch(true)}
           onNotificationClick={() => setActive('Notifications')}
-          onExportClick={() => setShowExportModal(true)}
+          onExportClick={handleExportTrigger}
           onProfileClick={() => setShowProfilePanel(true)}
           onMenuClick={() => setShowMenu(true)}
           profile={profileState}
@@ -478,6 +514,38 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
         {active === 'Overview' && (
           <>
             <section className="stats-grid" style={{ marginTop: '24px' }}>
+              <article className="glass-card completeness-card">
+                <div className="section-heading" style={{ marginBottom: '8px' }}>
+                  <div>
+                    <span className="section-kicker">PROFILE</span>
+                    <h2>Profile completion</h2>
+                  </div>
+                  <span className="mini-chip" style={{ background: 'rgba(103,107,255,0.12)', color: '#575bef' }}>{completionPercentage}%</span>
+                </div>
+                <div className="completeness-bar-container">
+                  <div className="completeness-bar-fill" style={{ width: `${completionPercentage}%` }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+                  <span>{completionPercentage < 100 ? 'Keep going to unlock more features.' : 'Everything is unlocked.'}</span>
+                  <button className="text-button" onClick={() => setShowProfilePanel(true)} type="button">Complete profile</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Missing information</span>
+                  {missingFields.length ? (
+                    <ul className="summary-list" style={{ gap: '6px' }}>
+                      {missingFields.slice(0, 5).map((field) => (
+                        <li key={field} style={{ justifyContent: 'flex-start', gap: '8px' }}>
+                          <Lock size={12} />
+                          <span>{field}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="helper-text" style={{ margin: 0 }}>Your academic profile is fully ready.</p>
+                  )}
+                </div>
+              </article>
+
               <StatCard
                 icon={Target}
                 label="Overall attendance"
@@ -503,7 +571,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
 
             <section className="dashboard-grid">
               <WeeklyChart weeklyTrend={weeklyTrend} hasData={attendance.length > 0} />
-              <NextClassCard nextClass={nextClass} onMarkClick={() => setShowModal(true)} />
+              <NextClassCard nextClass={nextClass} onMarkClick={handleMarkAttendanceTrigger} />
             </section>
 
             <section className="lower-grid">
@@ -511,7 +579,7 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
                 attendance={attendance.slice(0, 5)}
                 loading={loading}
                 onViewAllClick={() => setActive('Attendance')}
-                onExportClick={() => setShowExportModal(true)}
+                onExportClick={handleExportTrigger}
               />
               <MomentCard attendancePercentage={attendancePercentage} streak={streak} />
             </section>
@@ -533,6 +601,10 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
             pageCount={pageCount}
             setPage={setPage}
             onAddClick={() => {
+              if (profileLocked) {
+                setLockedFeature('Mark Attendance')
+                return
+              }
               setEditingRecord(null)
               setShowModal(true)
             }}
@@ -601,6 +673,27 @@ export default function DashboardPage({ profile, onLogout }: DashboardPageProps)
           onSaveManualRecord={handleSaveManualRecord}
           editingRecord={editingRecord}
         />
+      )}
+
+      {lockedFeature && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setLockedFeature(null)}>
+          <div className="attendance-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modal-icon" style={{ background: 'linear-gradient(135deg, rgba(103,107,255,0.16), rgba(67,199,146,0.14))' }}>
+              <Lock size={20} />
+            </div>
+            <div className="auth-badge" style={{ marginBottom: '8px' }}><Sparkles size={14} /> Premium unlock</div>
+            <h2>Complete your academic profile</h2>
+            <p>Finish your academic profile to unlock {lockedFeature.toLowerCase()} and enjoy the full AttendX experience.</p>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>
+              <button className="primary-button" style={{ flex: 1 }} onClick={() => { setLockedFeature(null); setShowProfilePanel(true) }}>
+                Complete Profile
+              </button>
+              <button className="auth-secondary" style={{ flex: 1 }} onClick={() => setLockedFeature(null)}>
+                Keep exploring
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showExportModal && (

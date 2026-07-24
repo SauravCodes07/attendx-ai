@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Mail, Sparkles } from 'lucide-react'
+import { PremiumInput } from '../components/PremiumInput'
 import { getAuthRedirectUrl, supabase } from '../supabase'
 
 type AuthMode = 'login' | 'signup' | 'forgot'
@@ -8,7 +9,6 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [fullName, setFullName] = useState('')
   const [remember, setRemember] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -29,7 +29,7 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
   }, [mode])
 
   const subtitle = useMemo(() => {
-    if (mode === 'signup') return 'Join AttendX AI and keep your attendance in sync.'
+    if (mode === 'signup') return 'Start in under 30 seconds. We only ask for the essentials first.'
     if (mode === 'forgot') return 'Enter your email and we will send a reset link.'
     return 'Sign in to your personal attendance space.'
   }, [mode])
@@ -51,7 +51,6 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
           password,
           options: {
             emailRedirectTo: getAuthRedirectUrl(),
-            data: { full_name: fullName },
           },
         })
         if (error) throw error
@@ -87,10 +86,14 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
 
   return (
     <div className="app auth-shell">
-      <div className="ambient ambient-one" /><div className="ambient ambient-two" />
+      <div className="ambient ambient-one" />
+      <div className="ambient ambient-two" />
       <div className="auth-card">
         <div className="auth-card__hero">
-          <div className="logo" aria-label="AttendX AI"><div className="logo-mark"><span /><span /><span /></div><span>Attend<span>X</span></span></div>
+          <div className="logo" aria-label="AttendX AI">
+            <div className="logo-mark"><span /><span /><span /></div>
+            <span>Attend<span>X</span></span>
+          </div>
           <div className="auth-badge"><Sparkles size={14} /> Premium attendance AI</div>
           <h1>{title}</h1>
           <p>{subtitle}</p>
@@ -98,40 +101,46 @@ export default function AuthPage({ onAuth }: { onAuth: () => void }) {
         <form className="auth-form" onSubmit={handleSubmit}>
           {message ? <div className="auth-message success">{message}</div> : null}
           {error ? <div className="auth-message error">{error}</div> : null}
-          {mode === 'signup' ? (
-            <label className="auth-field">
-              <span>Full name</span>
-              <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Ava Thompson" />
-            </label>
-          ) : null}
-          <label className="auth-field">
-            <span>Email</span>
-            <div className="auth-input-wrap">
-              <Mail size={16} />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required />
-            </div>
-          </label>
+
+          <PremiumInput
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+          />
+
           {mode !== 'forgot' ? (
-            <label className="auth-field">
-              <span>Password</span>
-              <div className="auth-input-wrap">
-                <Lock size={16} />
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required />
+            <div className="premium-input-group">
+              <label>Password</label>
+              <div className="premium-auth-input">
+                <input
+                  className="premium-input"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                />
                 <button type="button" className="auth-icon-btn" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-            </label>
+            </div>
           ) : null}
+
           {mode === 'login' ? (
             <label className="auth-inline">
               <input type="checkbox" checked={remember} onChange={() => setRemember(!remember)} />
               <span>Remember me</span>
             </label>
           ) : null}
+
           <button className="primary-button auth-submit" disabled={loading} type="submit">
             {loading ? 'Working…' : mode === 'forgot' ? 'Send reset link' : mode === 'signup' ? 'Create account' : 'Sign in'} <ArrowRight size={16} />
           </button>
+
           {mode === 'login' ? (
             <>
               <button type="button" className="auth-secondary" onClick={handleGoogle} disabled={loading}>Continue with Google</button>

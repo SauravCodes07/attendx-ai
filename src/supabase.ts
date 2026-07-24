@@ -144,14 +144,61 @@ export const getUserProfile = async () => {
 }
 
 /**
- * Check if a profile is "complete" enough to skip the profile-setup screen.
- * A profile needs at least one academic field filled in.
+ * Check if a profile is "complete" enough to skip the onboarding screen (First Login check).
+ * Only requires the minimal onboarding fields.
  */
 export const isProfileComplete = (profile: Profile | null): boolean => {
   if (!profile) return false
   return Boolean(
-    profile.full_name &&
-    (profile.usn || profile.roll_number) &&
-    (profile.department || profile.branch)
+    profile.full_name?.trim() &&
+    profile.branch?.trim() &&
+    profile.department?.trim() &&
+    profile.year?.trim() &&
+    profile.semester?.trim()
   )
 }
+
+/**
+ * Calculates the profile completeness percentage based on 12 key fields.
+ */
+export const calculateCompletionPercentage = (profile: Profile | null): number => {
+  if (!profile) return 0
+  const fields = [
+    profile.full_name,
+    profile.branch,
+    profile.department,
+    profile.year,
+    profile.semester,
+    profile.phone,
+    profile.dob,
+    profile.address,
+    profile.gender,
+    profile.roll_number,
+    profile.emergency_contact,
+    profile.college_email
+  ]
+  const filledCount = fields.filter(field => field && field.toString().trim() !== '').length
+  return Math.round((filledCount / fields.length) * 100)
+}
+
+/**
+ * Returns a list of missing profile fields with human-readable labels.
+ */
+export const getMissingFields = (profile: Profile | null): string[] => {
+  if (!profile) return []
+  const missing: string[] = []
+  if (!profile.full_name?.trim()) missing.push('Full Name')
+  if (!profile.branch?.trim()) missing.push('Branch')
+  if (!profile.department?.trim()) missing.push('Department')
+  if (!profile.year?.trim()) missing.push('Year')
+  if (!profile.semester?.trim()) missing.push('Semester')
+  if (!profile.phone?.trim()) missing.push('Phone Number')
+  if (!profile.dob?.trim()) missing.push('Date of Birth')
+  if (!profile.address?.trim()) missing.push('Address')
+  if (!profile.gender?.trim()) missing.push('Gender')
+  if (!profile.roll_number?.trim()) missing.push('Roll Number')
+  if (!profile.emergency_contact?.trim()) missing.push('Emergency Contact')
+  if (!profile.college_email?.trim()) missing.push('College Email')
+  return missing
+}
+
