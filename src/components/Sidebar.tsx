@@ -14,6 +14,7 @@ import {
   Lock,
 } from 'lucide-react'
 import type { Profile } from '../types'
+import AvatarImage from './AvatarImage'
 
 type PageKey = 'Overview' | 'Attendance' | 'Insights' | 'Timetable' | 'Notifications' | 'Settings' | 'Admin'
 
@@ -113,11 +114,11 @@ export default function Sidebar({
         </div>
         <div className="student-mini">
           {profile.avatar_url ? (
-            <img
-              src={profile.avatar_url}
+            <AvatarImage
+              avatarUrl={profile.avatar_url}
               alt={profile.full_name || 'Student'}
               className="avatar avatar-mini"
-              style={{ objectFit: 'cover' }}
+              fallback={<div className="avatar avatar-mini">{profile.full_name?.slice(0, 2).toUpperCase() || 'US'}</div>}
             />
           ) : (
             <div className="avatar avatar-mini">

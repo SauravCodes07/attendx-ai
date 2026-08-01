@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react'
-import { UploadCloud, User } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { AlertCircle, Loader2, RotateCcw, Trash2, UploadCloud, User } from 'lucide-react'
+import { getAvatarDisplayUrl } from '../avatar'
 
 interface PremiumInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string
@@ -122,10 +123,15 @@ interface PremiumFileUploadProps {
   hint?: string
   previewUrl?: string | null
   initials?: string
-  onFileSelect: (file: File) => void
+  onFileSelect: (file: File) => void | Promise<void>
   accept?: string
   optional?: boolean
   className?: string
+  isUploading?: boolean
+  uploadProgress?: number
+  uploadStage?: string
+  error?: string
+  onRemove?: () => void | Promise<void>
 }
 
 export function PremiumFileUpload({
@@ -134,15 +140,56 @@ export function PremiumFileUpload({
   previewUrl,
   initials = 'U',
   onFileSelect,
-  accept = 'image/*',
+  accept = 'image/jpeg,image/jpg,image/png,image/webp',
   optional = false,
   className = '',
+  isUploading = false,
+  uploadProgress = 0,
+  uploadStage,
+  error,
+  onRemove,
 }: PremiumFileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const selectedFileRef = useRef<File | null>(null)
+  const [localPreview, setLocalPreview] = useState<string | null>(null)
+  const [displayPreview, setDisplayPreview] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const previewSource = localPreview || previewUrl || null
+
+  useEffect(() => {
+    let active = true
+    void getAvatarDisplayUrl(previewSource).then((url) => {
+      if (active) setDisplayPreview(url)
+    })
+
+    return () => {
+      active = false
+    }
+  }, [previewSource])
+
+  useEffect(() => () => {
+    if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview)
+  }, [localPreview])
+
+  const selectFile = (file: File) => {
+    selectedFileRef.current = file
+    if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview)
+    setLocalPreview(URL.createObjectURL(file))
+    void onFileSelect(file)
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) onFileSelect(file)
+    if (file) selectFile(file)
+    e.target.value = ''
+  }
+
+  const handleRemove = () => {
+    if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview)
+    selectedFileRef.current = null
+    setLocalPreview(null)
+    void onRemove?.()
   }
 
   return (
@@ -155,22 +202,44 @@ export function PremiumFileUpload({
       )}
       <button
         type="button"
-        className="premium-file-upload"
-        onClick={() => fileInputRef.current?.click()}
+        className={`premium-file-upload ${isDragging ? 'is-dragging' : ''} ${error ? 'has-error' : ''}`}
+        onClick={() => !isUploading && fileInputRef.current?.click()}
+        onDragEnter={(event) => {
+          event.preventDefault()
+          if (!isUploading) setIsDragging(true)
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault()
+          setIsDragging(false)
+          const file = event.dataTransfer.files?.[0]
+          if (file && !isUploading) selectFile(file)
+        }}
+        disabled={isUploading}
+        aria-busy={isUploading}
       >
         <div className="premium-file-upload__preview">
-          {previewUrl ? (
-            <img src={previewUrl} alt="Preview" />
+          {displayPreview ? (
+            <img src={displayPreview} alt="Selected profile photo preview" />
           ) : (
             <User size={20} />
           )}
         </div>
         <div className="premium-file-upload__copy">
-          <strong>{previewUrl ? 'Change photo' : 'Upload photo'}</strong>
-          <span>{hint}</span>
+          <strong>{isUploading ? uploadStage || 'Uploading photo' : previewSource ? 'Change photo' : 'Upload photo'}</strong>
+          <span>{isUploading ? `${uploadProgress}% complete` : isDragging ? 'Drop the image to upload' : hint}</span>
         </div>
-        <UploadCloud size={18} className="premium-file-upload__icon" />
+        {isUploading ? <Loader2 size={18} className="premium-file-upload__icon spin" /> : <UploadCloud size={18} className="premium-file-upload__icon" />}
       </button>
+      {isUploading && <div className="premium-file-upload__progress" aria-label={`Upload ${uploadProgress}% complete`}><span style={{ width: `${uploadProgress}%` }} /></div>}
+      {error && <div className="premium-file-upload__error"><AlertCircle size={14} /><span>{error}</span></div>}
+      {(selectedFileRef.current || previewUrl) && !isUploading && (
+        <div className="premium-file-upload__actions">
+          {error && selectedFileRef.current && <button type="button" onClick={() => selectedFileRef.current && selectFile(selectedFileRef.current)}><RotateCcw size={14} /> Retry upload</button>}
+          {previewUrl && onRemove && <button type="button" onClick={handleRemove}><Trash2 size={14} /> Remove photo</button>}
+        </div>
+      )}
       <input
         ref={fileInputRef}
         type="file"

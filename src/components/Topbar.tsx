@@ -1,6 +1,7 @@
 import React from 'react'
 import { Menu, ChevronRight, Search, Bell, Sun, Moon, Download } from 'lucide-react'
 import type { Profile } from '../types'
+import AvatarImage from './AvatarImage'
 
 interface TopbarProps {
   active: string
@@ -60,11 +61,11 @@ export default function Topbar({
         </button>
         <button className="avatar-button" onClick={onProfileClick} aria-label="Open profile panel">
           {profile.avatar_url ? (
-            <img
-              src={profile.avatar_url}
+            <AvatarImage
+              avatarUrl={profile.avatar_url}
               alt={profile.full_name || 'Avatar'}
               className="avatar"
-              style={{ objectFit: 'cover' }}
+              fallback={<div className="avatar">{profile.full_name?.slice(0, 2).toUpperCase() || 'US'}</div>}
             />
           ) : (
             <div className="avatar">

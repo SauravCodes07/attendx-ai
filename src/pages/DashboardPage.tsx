@@ -166,20 +166,23 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
   }
 
   const handleProfileUpdate = async (updatedFields: Partial<Profile>) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update(updatedFields)
       .eq('id', profileState.id)
+      .select('*')
+      .single()
 
-    if (error) {
-      throw error
-    }
+    if (error || !data) throw error || new Error('Profile was not returned after saving.')
 
-    setProfileState((prev) => {
-      const next = { ...prev, ...updatedFields }
-      onProfileChange?.(next)
-      return next
-    })
+    const nextProfile = data as Profile
+    setProfileState(nextProfile)
+    onProfileChange?.(nextProfile)
+  }
+
+  const handleProfileReplace = (updatedProfile: Profile) => {
+    setProfileState(updatedProfile)
+    onProfileChange?.(updatedProfile)
   }
 
   const handlePasswordChange = async () => {
@@ -779,6 +782,8 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
           profile={profileState}
           onClose={() => setShowProfilePanel(false)}
           onProfileUpdate={handleProfileUpdate}
+          onProfileReplace={handleProfileReplace}
+          onToast={showToast}
           onLogout={onLogout}
           onPasswordChange={handlePasswordChange}
           onExportClick={() => {

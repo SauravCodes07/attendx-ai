@@ -3,9 +3,11 @@ import { ArrowRight, Sparkles } from 'lucide-react'
 import AuthPage from './pages/AuthPage'
 import DashboardPage from './pages/DashboardPage'
 import LandingPage from './pages/LandingPage'
-import { supabase, ensureProfile, isProfileComplete, ensureAvatarBucket } from './supabase'
+import { supabase, ensureProfile, isProfileComplete } from './supabase'
+import { removeAvatar, uploadAvatar, type AvatarUploadProgress } from './avatar'
 import { useTheme } from './hooks/useTheme'
 import { PremiumInput, PremiumSelect, PremiumFileUpload } from './components/PremiumInput'
+import Toast from './components/Toast'
 import type { Profile } from './types'
 
 type ViewMode = 'landing' | 'auth' | 'dashboard' | 'profile-setup'
@@ -29,14 +31,16 @@ function App() {
 
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileError, setProfileError] = useState('')
-  const [uploadState, setUploadState] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarProgress, setAvatarProgress] = useState<AvatarUploadProgress | null>(null)
+  const [avatarError, setAvatarError] = useState('')
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   // Load session with a timeout safety to prevent infinite loading screen
   useEffect(() => {
     let active = true
     const timeoutId = setTimeout(() => {
       if (active && loading) {
-        console.warn('Authentication initialization timed out. Proceeding to fallback state.')
         setLoading(false)
       }
     }, 2500) // Max 2.5 seconds loading time as required
@@ -75,8 +79,7 @@ function App() {
             setView('landing')
           }
         }
-      } catch (err) {
-        console.error('Error fetching session:', err)
+      } catch {
         if (active) {
           setView('landing')
         }
@@ -137,34 +140,42 @@ function App() {
     setView('landing')
   }
 
-  // Handle uploading custom profile photo during signup wizard
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement> | File) => {
-    const file = e instanceof File ? e : e.target.files?.[0]
+  const handleAvatarUpload = async (file: File) => {
     if (!file || !profile?.id) return
 
-    setUploadState('Uploading photo...')
+    setAvatarUploading(true)
+    setAvatarError('')
+    setAvatarProgress({ stage: 'validating', percentage: 0 })
     try {
-      const { ready } = await ensureAvatarBucket()
-      if (!ready) {
-        setUploadState('Storage is not ready. Please try again later.')
-        return
-      }
+      const result = await uploadAvatar(profile.id, profile.avatar_url, file, setAvatarProgress)
+      setProfile(result.profile)
+      setProfileForm((prev) => ({ ...prev, avatar_url: result.profile.avatar_url || '' }))
+      setToast({ message: 'Profile photo uploaded successfully.', type: 'success' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to upload your profile photo.'
+      setAvatarError(message)
+      setToast({ message, type: 'error' })
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
 
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${profile.id}/avatar-${Date.now()}.${fileExt}`
+  const handleAvatarRemove = async () => {
+    if (!profile?.id || !profile.avatar_url) return
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { upsert: true })
-
-      if (uploadError) throw uploadError
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName)
-      setProfileForm((prev) => ({ ...prev, avatar_url: data.publicUrl }))
-      setUploadState('Photo uploaded successfully!')
-    } catch (err: any) {
-      console.error(err)
-      setUploadState(`Upload failed: ${err.message}`)
+    setAvatarUploading(true)
+    setAvatarError('')
+    try {
+      const updatedProfile = await removeAvatar(profile.id, profile.avatar_url)
+      setProfile(updatedProfile)
+      setProfileForm((prev) => ({ ...prev, avatar_url: '' }))
+      setToast({ message: 'Profile photo removed.', type: 'success' })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to remove your profile photo.'
+      setAvatarError(message)
+      setToast({ message, type: 'error' })
+    } finally {
+      setAvatarUploading(false)
     }
   }
 
@@ -192,27 +203,22 @@ function App() {
     setProfileError('')
 
     try {
-      const { error } = await supabase
+      const { data: updatedProfile, error } = await supabase
         .from('profiles')
         .update({
-          full_name: profileForm.full_name,
-          branch: profileForm.branch,
+          full_name: profileForm.full_name.trim(),
+          branch: profileForm.branch.trim(),
           year: profileForm.year,
           semester: profileForm.semester,
           avatar_url: profileForm.avatar_url || null,
+          profile_completed: true,
           updated_at: new Date().toISOString(),
         })
         .eq('id', profile.id)
-
-      if (error) throw error
-
-      const { data: updatedProfile, error: refetchError } = await supabase
-        .from('profiles')
         .select('*')
-        .eq('id', profile.id)
         .single()
 
-      if (refetchError) throw refetchError
+      if (error || !updatedProfile) throw error || new Error('Profile was not returned after saving.')
 
       setProfile(updatedProfile as Profile)
       setView('dashboard')
@@ -297,8 +303,12 @@ function App() {
                 onFileSelect={(file) => void handleAvatarUpload(file)}
                 hint="Skip if you prefer — add later from profile"
                 optional
+                isUploading={avatarUploading}
+                uploadProgress={avatarProgress?.percentage}
+                uploadStage={avatarProgress?.stage === 'saving' ? 'Saving photo' : avatarProgress?.stage === 'compressing' ? 'Optimizing photo' : avatarProgress?.stage === 'uploading' ? 'Uploading photo' : undefined}
+                error={avatarError}
+                onRemove={handleAvatarRemove}
               />
-              {uploadState && <p className="helper-text onboarding-upload-status">{uploadState}</p>}
 
               <PremiumInput
                 label="Full name"
@@ -344,7 +354,7 @@ function App() {
 
               <button
                 className="primary-button auth-submit"
-                disabled={profileSaving}
+                disabled={profileSaving || avatarUploading}
                 onClick={handleProfileSave}
                 type="button"
               >
@@ -369,9 +379,9 @@ function App() {
         onLogout={handleLogout}
       />
     )
-  }, [loading, profile, view, isAuthenticated, profileForm, profileSaving, profileError, uploadState, handleLogout, isDark])
+  }, [loading, profile, view, isAuthenticated, profileForm, profileSaving, profileError, avatarUploading, avatarProgress, avatarError, handleLogout, isDark])
 
-  return mainView
+  return <>{mainView}{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}</>
 }
 
 export default App

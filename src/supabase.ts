@@ -59,7 +59,11 @@ const createFallbackClient = () => ({
     from: () => ({
       upload: async () => ({ error: { message: missingConfigMessage } }),
       getPublicUrl: () => ({ data: { publicUrl: '' } }),
+      createSignedUrl: async () => ({ data: { signedUrl: '' }, error: { message: missingConfigMessage } }),
+      remove: async () => ({ error: { message: missingConfigMessage } }),
     }),
+    listBuckets: async () => ({ data: [], error: { message: missingConfigMessage } }),
+    createBucket: async () => ({ error: { message: missingConfigMessage } }),
   },
 })
 
@@ -91,12 +95,13 @@ export const ensureProfile = async (
   if (!isSupabaseConfigured) return null
 
   // First try to fetch existing profile
-  const { data: existing } = await supabase
+  const { data: existing, error: fetchError } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', userId)
     .maybeSingle()
 
+  if (fetchError) throw fetchError
   if (existing) return existing as Profile
 
   // No profile exists — create one via upsert
@@ -113,23 +118,7 @@ export const ensureProfile = async (
     .select('*')
     .single()
 
-  if (error) {
-    // If upsert fails (e.g. RLS), still return a minimal profile object
-    // so the app doesn't hang on the loading screen
-    return {
-      id: userId,
-      email: email || null,
-      full_name: fullName || null,
-      role: email === ADMIN_EMAIL ? 'admin' : 'student',
-      avatar_url: null,
-      phone: null,
-      bio: null,
-      dark_mode: false,
-      theme_preference: 'system',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as Profile
-  }
+  if (error) throw error
 
   return created as Profile
 }
@@ -204,31 +193,3 @@ export const getOptionalMissingFields = (profile: Profile | null): string[] => {
     return !value || value.toString().trim() === ''
   }).map(({ label }) => label)
 }
-
-/**
- * Ensures the 'avatars' storage bucket exists.
- * Creates it if missing so profile photo uploads never fail due to bucket name issues.
- */
-export const ensureAvatarBucket = async (): Promise<{ ready: boolean; error?: string }> => {
-  if (!isSupabaseConfigured) return { ready: false, error: 'Supabase is not configured.' }
-
-  try {
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets()
-    if (listError) return { ready: false, error: listError.message }
-
-    const exists = buckets.some((bucket: any) => bucket.name === 'avatars')
-    if (exists) return { ready: true }
-
-    const { error: createError } = await supabase.storage.createBucket('avatars', {
-      public: true,
-      fileSizeLimit: 1024 * 1024 * 2, // 2MB
-      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'],
-    })
-
-    if (createError) return { ready: false, error: createError.message }
-    return { ready: true }
-  } catch (err: any) {
-    return { ready: false, error: err.message || 'Failed to ensure avatar bucket exists.' }
-  }
-}
-

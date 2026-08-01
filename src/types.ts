@@ -6,6 +6,7 @@ export interface Profile {
   email: string | null
   role: string
   avatar_url: string | null
+  profile_completed?: boolean
   phone: string | null
   bio: string | null
   dark_mode: boolean

@@ -18,8 +18,8 @@ import {
   calculateCompletionPercentage,
   getMissingFields,
   getOptionalMissingFields,
-  supabase,
 } from '../supabase'
+import { removeAvatar, uploadAvatar, type AvatarUploadProgress } from '../avatar'
 import {
   PremiumInput,
   PremiumSelect,
@@ -32,6 +32,8 @@ interface ProfilePanelProps {
   profile: Profile
   onClose: () => void
   onProfileUpdate: (updatedFields: Partial<Profile>) => Promise<void>
+  onProfileReplace: (profile: Profile) => void
+  onToast: (message: string, type: 'success' | 'error') => void
   onLogout: () => void
   onPasswordChange: () => void
   onExportClick: () => void
@@ -48,6 +50,8 @@ export default function ProfilePanel({
   profile,
   onClose,
   onProfileUpdate,
+  onProfileReplace,
+  onToast,
   onLogout,
   onPasswordChange,
   onExportClick,
@@ -78,6 +82,9 @@ export default function ProfilePanel({
   })
 
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || '')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarProgress, setAvatarProgress] = useState<AvatarUploadProgress | null>(null)
+  const [avatarError, setAvatarError] = useState('')
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [saveError, setSaveError] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -96,6 +103,10 @@ export default function ProfilePanel({
   const missingFields = useMemo(() => getMissingFields(mergedProfile), [mergedProfile])
   const optionalMissing = useMemo(() => getOptionalMissingFields(mergedProfile), [mergedProfile])
   const isVerified = profile.email_verified === true
+
+  useEffect(() => {
+    setAvatarUrl(profile.avatar_url || '')
+  }, [profile.avatar_url])
 
   const persistProfile = useCallback(
     async (fields: Partial<Profile>) => {
@@ -143,25 +154,44 @@ export default function ProfilePanel({
   }
 
   const handlePhotoUpload = async (file: File) => {
+    setAvatarUploading(true)
     setSaveStatus('saving')
+    setAvatarError('')
+    setAvatarProgress({ stage: 'validating', percentage: 0 })
     try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${profile.id}/avatar-${Date.now()}.${fileExt}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { upsert: true })
-
-      if (uploadError) throw uploadError
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName)
-      setAvatarUrl(data.publicUrl)
-      await onProfileUpdate({ avatar_url: data.publicUrl })
+      const result = await uploadAvatar(profile.id, avatarUrl || profile.avatar_url, file, setAvatarProgress)
+      setAvatarUrl(result.path)
+      onProfileReplace(result.profile)
       setSaveStatus('saved')
+      onToast('Profile photo uploaded successfully.', 'success')
       setTimeout(() => setSaveStatus('idle'), 2000)
-    } catch (err: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Photo upload failed.'
       setSaveStatus('error')
-      setSaveError(err.message || 'Photo upload failed.')
+      setSaveError(message)
+      setAvatarError(message)
+      onToast(message, 'error')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  const handlePhotoRemove = async () => {
+    if (!avatarUrl && !profile.avatar_url) return
+
+    setAvatarUploading(true)
+    setAvatarError('')
+    try {
+      const updatedProfile = await removeAvatar(profile.id, avatarUrl || profile.avatar_url)
+      setAvatarUrl('')
+      onProfileReplace(updatedProfile)
+      onToast('Profile photo removed.', 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not remove your profile photo.'
+      setAvatarError(message)
+      onToast(message, 'error')
+    } finally {
+      setAvatarUploading(false)
     }
   }
 
@@ -266,6 +296,11 @@ export default function ProfilePanel({
           initials={profileForm.full_name?.slice(0, 2).toUpperCase() || 'US'}
           onFileSelect={handlePhotoUpload}
           optional
+          isUploading={avatarUploading}
+          uploadProgress={avatarProgress?.percentage}
+          uploadStage={avatarProgress?.stage === 'saving' ? 'Saving photo' : avatarProgress?.stage === 'compressing' ? 'Optimizing photo' : avatarProgress?.stage === 'uploading' ? 'Uploading photo' : undefined}
+          error={avatarError}
+          onRemove={handlePhotoRemove}
         />
 
         <div className="profile-panel__stats">
