@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { calculateCompletionPercentage, getMissingFields, supabase } from '../supabase'
 import type { AttendanceRecord, NotificationItem, Profile, Subject, TimetableItem } from '../types'
@@ -7,28 +7,39 @@ import type { AttendanceRecord, NotificationItem, Profile, Subject, TimetableIte
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import StatCard from '../components/StatCard'
-import WeeklyChart from '../components/WeeklyChart'
 import NextClassCard from '../components/NextClassCard'
 import AttendanceHistory from '../components/AttendanceHistory'
 import MomentCard from '../components/MomentCard'
-import AttendanceTable from '../components/AttendanceTable'
-import InsightsPanel from '../components/InsightsPanel'
-import TimetablePanel from '../components/TimetablePanel'
-import NotificationsPanel from '../components/NotificationsPanel'
-import SettingsPanel from '../components/SettingsPanel'
-import ProfilePanel from '../components/ProfilePanel'
-import MarkAttendanceModal from '../components/MarkAttendanceModal'
-import ExportModal from '../components/ExportModal'
-import SearchOverlay from '../components/SearchOverlay'
-import MobileDrawer from '../components/MobileDrawer'
 import Toast from '../components/Toast'
-import AdminPanel from '../components/AdminPanel'
 import { StatCardSkeleton, AttendanceRowSkeleton, ChartSkeleton, NextClassSkeleton, Skeleton } from '../components/SkeletonLoader'
 
 // Lucide icon helper imports
 import { Target, CalendarDays, TrendingUp, Check, Lock, Sparkles } from 'lucide-react'
 
+const WeeklyChart = lazy(() => import('../components/WeeklyChart'))
+const AttendanceTable = lazy(() => import('../components/AttendanceTable'))
+const InsightsPanel = lazy(() => import('../components/InsightsPanel'))
+const TimetablePanel = lazy(() => import('../components/TimetablePanel'))
+const NotificationsPanel = lazy(() => import('../components/NotificationsPanel'))
+const SettingsPanel = lazy(() => import('../components/SettingsPanel'))
+const ProfilePanel = lazy(() => import('../components/ProfilePanel'))
+const MarkAttendanceModal = lazy(() => import('../components/MarkAttendanceModal'))
+const ExportModal = lazy(() => import('../components/ExportModal'))
+const SearchOverlay = lazy(() => import('../components/SearchOverlay'))
+const MobileDrawer = lazy(() => import('../components/MobileDrawer'))
+const AdminPanel = lazy(() => import('../components/AdminPanel'))
+
 type PageKey = 'Overview' | 'Attendance' | 'Insights' | 'Timetable' | 'Notifications' | 'Settings' | 'Admin'
+
+function PanelSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <section className="panel-card glass-card progressive-panel" aria-busy="true">
+      <Skeleton style={{ width: 128, height: 13, borderRadius: 4 }} />
+      <Skeleton style={{ width: 210, height: 26, borderRadius: 6, marginTop: 8, marginBottom: 22 }} />
+      {Array.from({ length: rows }, (_, index) => <Skeleton key={index} style={{ width: '100%', height: 42, borderRadius: 10, marginTop: 10 }} />)}
+    </section>
+  )
+}
 
 interface DashboardPageProps {
   profile: Profile
@@ -61,6 +72,9 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const hasLoadedRef = useRef(false)
+  const requestIdRef = useRef(0)
 
   // Table search & filter states
   const [search, setSearch] = useState('')
@@ -69,13 +83,16 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
   const [page, setPage] = useState(1)
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null)
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type })
-  }
+  }, [])
 
-  // Load database registers cleanly
-  const loadData = async () => {
-    setLoading(true)
+  const loadData = useCallback(async () => {
+    const requestId = ++requestIdRef.current
+    const isInitialLoad = !hasLoadedRef.current
+    if (isInitialLoad) setLoading(true)
+    else setRefreshing(true)
+
     try {
       const [attendanceRes, subjectsRes, timetableRes, notificationsRes] = await Promise.all([
         supabase
@@ -101,22 +118,25 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
           .order('created_at', { ascending: false }),
       ])
 
-      // Inline error checking to avoid page crashes
-      if (attendanceRes.error) showToast(attendanceRes.error.message, 'error')
-      if (subjectsRes.error) showToast(subjectsRes.error.message, 'error')
-      if (timetableRes.error) showToast(timetableRes.error.message, 'error')
-      if (notificationsRes.error) showToast(notificationsRes.error.message, 'error')
+      if (requestId !== requestIdRef.current) return
+
+      const loadError = attendanceRes.error || subjectsRes.error || timetableRes.error || notificationsRes.error
+      if (loadError) showToast(loadError.message, 'error')
 
       if (attendanceRes.data) setAttendance(attendanceRes.data as AttendanceRecord[])
       if (subjectsRes.data) setSubjects(subjectsRes.data as Subject[])
       if (timetableRes.data) setTimetable(timetableRes.data as TimetableItem[])
       if (notificationsRes.data) setNotifications(notificationsRes.data as NotificationItem[])
     } catch (err: any) {
-      showToast(err.message || 'Error occurred while synchronization with Supabase.', 'error')
+      if (requestId === requestIdRef.current) showToast(err.message || 'Error occurred while synchronization with Supabase.', 'error')
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        hasLoadedRef.current = true
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
-  }
+  }, [profileState.id, showToast])
 
   useEffect(() => {
     setProfileState(profile)
@@ -125,25 +145,26 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
 
   // Realtime Supabase change listener subscriptions
   useEffect(() => {
-    loadData()
+    hasLoadedRef.current = false
+    void loadData()
 
     const channel = supabase
       .channel('realtime-dashboard-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
-        loadData()
+        void loadData()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        loadData()
+        void loadData()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'timetable' }, () => {
-        loadData()
+        void loadData()
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [profileState.id])
+  }, [loadData, profileState.id])
 
   // Command-K keyboard listener
   useEffect(() => {
@@ -474,14 +495,17 @@ export default function DashboardPage({ profile, onLogout, onProfileChange }: Da
   // Weekly analytics rhythm
   const weeklyTrend = useMemo(() => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const totals = new Map(days.map((day) => [day, { total: 0, present: 0 }]))
+    attendance.forEach((row) => {
+      const day = new Date(row.attendance_date).toLocaleDateString('en-US', { weekday: 'short' })
+      const bucket = totals.get(day)
+      if (!bucket) return
+      bucket.total += 1
+      if (row.status === 'present') bucket.present += 1
+    })
     return days.map((day) => {
-      const records = attendance.filter(
-        (row) =>
-          new Date(row.attendance_date).toLocaleDateString('en-US', { weekday: 'short' }) === day
-      )
-      const present = records.filter((row) => row.status === 'present').length
-      const percent = records.length ? Math.round((present / records.length) * 100) : 0
-      return { day, percent }
+      const bucket = totals.get(day)!
+      return { day, percent: bucket.total ? Math.round((bucket.present / bucket.total) * 100) : 0 }
     })
   }, [attendance])
 

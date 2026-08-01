@@ -1,34 +1,44 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Sparkles } from 'lucide-react'
-import AuthPage from './pages/AuthPage'
-import DashboardPage from './pages/DashboardPage'
-import LandingPage from './pages/LandingPage'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { supabase, ensureProfile, isProfileComplete } from './supabase'
 import { removeAvatar, uploadAvatar, type AvatarUploadProgress } from './avatar'
 import { useTheme } from './hooks/useTheme'
-import { PremiumInput, PremiumSelect, PremiumFileUpload } from './components/PremiumInput'
+import AppShellSkeleton from './components/AppShellSkeleton'
 import Toast from './components/Toast'
 import type { Profile } from './types'
+import type { OnboardingProfileForm } from './pages/ProfileSetupPage'
+
+const AuthPage = lazy(() => import('./pages/AuthPage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const ProfileSetupPage = lazy(() => import('./pages/ProfileSetupPage'))
 
 type ViewMode = 'landing' | 'auth' | 'dashboard' | 'profile-setup'
 
+const getProfileCacheKey = (userId: string) => `attendx:profile:${userId}`
+
+const readProfileCache = (userId: string): Profile | null => {
+  try {
+    const cached = window.sessionStorage.getItem(getProfileCacheKey(userId))
+    return cached ? JSON.parse(cached) as Profile : null
+  } catch {
+    return null
+  }
+}
+
+const writeProfileCache = (profile: Profile) => {
+  try {
+    window.sessionStorage.setItem(getProfileCacheKey(profile.id), JSON.stringify(profile))
+  } catch {}
+}
+
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [view, setView] = useState<ViewMode>('landing')
-
-  // Theme management using our hook
-  const { theme, isDark, setTheme, syncWithProfile } = useTheme(profile?.id || undefined)
-
-  // Profile setup wizard state (reduced for onboarding under 30s)
-  const [profileForm, setProfileForm] = useState({
-    full_name: '',
-    branch: '',
-    year: '1',
-    semester: '1',
-    avatar_url: '',
-  })
-
+  const { isDark, syncWithProfile } = useTheme(profile?.id)
+  const [profileForm, setProfileForm] = useState<OnboardingProfileForm>({ full_name: '', branch: '', year: '1', semester: '1', avatar_url: '' })
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileError, setProfileError] = useState('')
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -36,120 +46,90 @@ function App() {
   const [avatarError, setAvatarError] = useState('')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
-  // Load session with a timeout safety to prevent infinite loading screen
+  const applyProfile = useCallback((nextProfile: Profile) => {
+    writeProfileCache(nextProfile)
+    setProfile(nextProfile)
+    setProfileForm({
+      full_name: nextProfile.full_name || '',
+      branch: nextProfile.branch || '',
+      year: nextProfile.year || '1',
+      semester: nextProfile.semester || '1',
+      avatar_url: nextProfile.avatar_url || '',
+    })
+    if (nextProfile.theme_preference) syncWithProfile(nextProfile.theme_preference)
+    setView(isProfileComplete(nextProfile) ? 'dashboard' : 'profile-setup')
+    setProfileLoading(false)
+  }, [syncWithProfile])
+
+  const refreshProfile = useCallback(async (user: User) => {
+    try {
+      const freshProfile = await ensureProfile(user.id, user.email, user.user_metadata?.full_name)
+      if (freshProfile) applyProfile(freshProfile)
+      else setProfileLoading(false)
+    } catch {
+      setProfileLoading(false)
+      setToast({ message: 'Unable to refresh your profile. Showing the latest available workspace.', type: 'error' })
+    }
+  }, [applyProfile])
+
+  const hydrateUser = useCallback((user: User) => {
+    const cachedProfile = readProfileCache(user.id)
+    if (cachedProfile) applyProfile(cachedProfile)
+    else setProfileLoading(true)
+    void refreshProfile(user)
+  }, [applyProfile, refreshProfile])
+
   useEffect(() => {
     let active = true
-    const timeoutId = setTimeout(() => {
-      if (active && loading) {
-        setLoading(false)
-      }
-    }, 2500) // Max 2.5 seconds loading time as required
 
     const loadSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          const fetchedProfile = await ensureProfile(
-            session.user.id,
-            session.user.email,
-            session.user.user_metadata?.full_name
-          )
-          if (active) {
-            setProfile(fetchedProfile)
-            if (fetchedProfile) {
-              setProfileForm((prev) => ({
-                ...prev,
-                full_name: fetchedProfile.full_name || '',
-                branch: fetchedProfile.branch || '',
-                year: fetchedProfile.year || '1',
-                semester: fetchedProfile.semester || '1',
-                avatar_url: fetchedProfile.avatar_url || '',
-              }))
-
-              if (fetchedProfile.theme_preference) {
-                syncWithProfile(fetchedProfile.theme_preference)
-              }
-            }
-
-            setView(isProfileComplete(fetchedProfile) ? 'dashboard' : 'profile-setup')
-          }
-        } else {
-          if (active) {
-            setProfile(null)
-            setView('landing')
-          }
-        }
-      } catch {
-        if (active) {
-          setView('landing')
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-          clearTimeout(timeoutId)
-        }
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!active) return
+      setAuthLoading(false)
+      if (session?.user) hydrateUser(session.user)
+      else {
+        setProfile(null)
+        setProfileLoading(false)
+        setView('landing')
       }
     }
 
     void loadSession()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: any, session: any) => {
-        if (session?.user) {
-          setLoading(true)
-          const fetchedProfile = await ensureProfile(
-            session.user.id,
-            session.user.email,
-            session.user.user_metadata?.full_name
-          )
-          setProfile(fetchedProfile)
-          if (fetchedProfile) {
-            setProfileForm((prev) => ({
-              ...prev,
-              full_name: fetchedProfile.full_name || prev.full_name,
-              branch: fetchedProfile.branch || prev.branch,
-              year: fetchedProfile.year || prev.year,
-              semester: fetchedProfile.semester || prev.semester,
-              avatar_url: fetchedProfile.avatar_url || prev.avatar_url,
-            }))
-
-            if (fetchedProfile.theme_preference) {
-              syncWithProfile(fetchedProfile.theme_preference)
-            }
-          }
-          setView(isProfileComplete(fetchedProfile) ? 'dashboard' : 'profile-setup')
-          setLoading(false)
-        } else {
-          setProfile(null)
-          setView('landing')
-          setLoading(false)
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return
+      setAuthLoading(false)
+      if (session?.user) hydrateUser(session.user)
+      else {
+        setProfile(null)
+        setProfileLoading(false)
+        setView('landing')
       }
-    )
+    })
 
     return () => {
       active = false
       subscription.unsubscribe()
-      clearTimeout(timeoutId)
     }
-  }, [])
+  }, [hydrateUser])
+
+  const handleProfileChange = useCallback((updatedProfile: Profile) => applyProfile(updatedProfile), [applyProfile])
 
   const handleLogout = async () => {
+    const profileId = profile?.id
     await supabase.auth.signOut()
+    if (profileId) window.sessionStorage.removeItem(getProfileCacheKey(profileId))
     setProfile(null)
     setView('landing')
   }
 
   const handleAvatarUpload = async (file: File) => {
-    if (!file || !profile?.id) return
-
+    if (!profile?.id) return
     setAvatarUploading(true)
     setAvatarError('')
     setAvatarProgress({ stage: 'validating', percentage: 0 })
     try {
       const result = await uploadAvatar(profile.id, profile.avatar_url, file, setAvatarProgress)
-      setProfile(result.profile)
-      setProfileForm((prev) => ({ ...prev, avatar_url: result.profile.avatar_url || '' }))
+      handleProfileChange(result.profile)
       setToast({ message: 'Profile photo uploaded successfully.', type: 'success' })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to upload your profile photo.'
@@ -162,13 +142,10 @@ function App() {
 
   const handleAvatarRemove = async () => {
     if (!profile?.id || !profile.avatar_url) return
-
     setAvatarUploading(true)
     setAvatarError('')
     try {
-      const updatedProfile = await removeAvatar(profile.id, profile.avatar_url)
-      setProfile(updatedProfile)
-      setProfileForm((prev) => ({ ...prev, avatar_url: '' }))
+      handleProfileChange(await removeAvatar(profile.id, profile.avatar_url))
       setToast({ message: 'Profile photo removed.', type: 'success' })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to remove your profile photo.'
@@ -181,29 +158,15 @@ function App() {
 
   const handleProfileSave = async () => {
     if (!profile?.id) return
-
-    if (!profileForm.full_name.trim()) {
-      setProfileError('Full name is required.')
-      return
-    }
-    if (!profileForm.branch.trim()) {
-      setProfileError('Branch is required.')
-      return
-    }
-    if (!profileForm.year) {
-      setProfileError('Year is required.')
-      return
-    }
-    if (!profileForm.semester) {
-      setProfileError('Semester is required.')
+    if (!profileForm.full_name.trim() || !profileForm.branch.trim() || !profileForm.year || !profileForm.semester) {
+      setProfileError('Complete your name, branch, year, and semester to continue.')
       return
     }
 
     setProfileSaving(true)
     setProfileError('')
-
     try {
-      const { data: updatedProfile, error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({
           full_name: profileForm.full_name.trim(),
@@ -218,170 +181,29 @@ function App() {
         .select('*')
         .single()
 
-      if (error || !updatedProfile) throw error || new Error('Profile was not returned after saving.')
-
-      setProfile(updatedProfile as Profile)
-      setView('dashboard')
-    } catch (err: any) {
-      setProfileError(err.message || 'Unable to save your profile right now.')
+      if (error || !data) throw error || new Error('Profile was not returned after saving.')
+      handleProfileChange(data as Profile)
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Unable to save your profile right now.')
     } finally {
       setProfileSaving(false)
     }
   }
 
-  const isAuthenticated = Boolean(profile)
+  let content: JSX.Element
+  if (authLoading || (profileLoading && !profile)) {
+    content = <AppShellSkeleton />
+  } else if (view === 'dashboard' && profile) {
+    content = <Suspense fallback={<AppShellSkeleton />}><DashboardPage profile={profile} onLogout={handleLogout} onProfileChange={handleProfileChange} /></Suspense>
+  } else if (view === 'profile-setup' && profile) {
+    content = <Suspense fallback={<AppShellSkeleton />}><ProfileSetupPage isDark={isDark} form={profileForm} profileError={profileError} profileSaving={profileSaving} avatarUploading={avatarUploading} avatarProgress={avatarProgress} avatarError={avatarError} onFormChange={setProfileForm} onAvatarUpload={handleAvatarUpload} onAvatarRemove={handleAvatarRemove} onSave={handleProfileSave} /></Suspense>
+  } else if (view === 'auth') {
+    content = <Suspense fallback={<AppShellSkeleton />}><AuthPage onAuth={() => setAuthLoading(true)} /></Suspense>
+  } else {
+    content = <Suspense fallback={<AppShellSkeleton />}><LandingPage isAuthenticated={Boolean(profile)} onGetStarted={() => setView('auth')} onLogin={() => setView('auth')} onGoToDashboard={() => setView(profile && isProfileComplete(profile) ? 'dashboard' : 'auth')} onLogout={handleLogout} /></Suspense>
+  }
 
-  const mainView = useMemo(() => {
-    if (loading) {
-      return (
-        <div className="app auth-shell">
-          <div className="ambient ambient-one" />
-          <div className="ambient ambient-two" />
-          <div className="auth-card loading-card">
-            <div className="loading-ring" aria-hidden="true" />
-            <div className="auth-card__hero">
-              <div className="logo" aria-label="AttendX AI">
-                <div className="logo-mark">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <span>
-                  Attend<span>X</span>
-                </span>
-              </div>
-              <h1>Loading AttendX AI</h1>
-              <p>Preparing your secure workspace and live Supabase data.</p>
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    if (view === 'dashboard' && profile) {
-      return (
-        <DashboardPage
-          profile={profile}
-          onLogout={handleLogout}
-          onProfileChange={setProfile}
-        />
-      )
-    }
-
-    if (view === 'profile-setup' && profile) {
-      return (
-        <div className={`app auth-shell ${isDark ? 'dark' : ''}`}>
-          <div className="ambient ambient-one" />
-          <div className="ambient ambient-two" />
-          <div className="auth-card onboarding-card" style={{ maxWidth: '480px' }}>
-            <div className="auth-card__hero">
-              <div className="logo" aria-label="AttendX AI">
-                <div className="logo-mark">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <span>
-                  Attend<span>X</span>
-                </span>
-              </div>
-              <div className="auth-badge">
-                <Sparkles size={14} /> Quick setup
-              </div>
-              <h1 style={{ fontSize: '24px', letterSpacing: '-0.8px', margin: '12px 0 6px 0' }}>
-                Welcome — just the basics
-              </h1>
-              <p>Takes under 30 seconds. Everything else can wait until you&apos;re in the dashboard.</p>
-            </div>
-
-            {profileError ? <div className="auth-message error">{profileError}</div> : null}
-
-            <div className="auth-form onboarding-form">
-              <PremiumFileUpload
-                previewUrl={profileForm.avatar_url || null}
-                initials={profileForm.full_name?.slice(0, 2).toUpperCase() || 'U'}
-                onFileSelect={(file) => void handleAvatarUpload(file)}
-                hint="Skip if you prefer — add later from profile"
-                optional
-                isUploading={avatarUploading}
-                uploadProgress={avatarProgress?.percentage}
-                uploadStage={avatarProgress?.stage === 'saving' ? 'Saving photo' : avatarProgress?.stage === 'compressing' ? 'Optimizing photo' : avatarProgress?.stage === 'uploading' ? 'Uploading photo' : undefined}
-                error={avatarError}
-                onRemove={handleAvatarRemove}
-              />
-
-              <PremiumInput
-                label="Full name"
-                value={profileForm.full_name}
-                onChange={(event) => setProfileForm({ ...profileForm, full_name: event.target.value })}
-                placeholder="e.g. Ava Thompson"
-                required
-                autoFocus
-              />
-
-              <PremiumInput
-                label="Branch"
-                value={profileForm.branch}
-                onChange={(event) => setProfileForm({ ...profileForm, branch: event.target.value })}
-                placeholder="e.g. Computer Science"
-                required
-              />
-
-              <div className="settings-grid onboarding-grid">
-                <PremiumSelect
-                  label="Year"
-                  value={profileForm.year}
-                  onChange={(event) => setProfileForm({ ...profileForm, year: event.target.value })}
-                >
-                  <option value="1">1st Year</option>
-                  <option value="2">2nd Year</option>
-                  <option value="3">3rd Year</option>
-                  <option value="4">4th Year</option>
-                </PremiumSelect>
-
-                <PremiumSelect
-                  label="Semester"
-                  value={profileForm.semester}
-                  onChange={(event) => setProfileForm({ ...profileForm, semester: event.target.value })}
-                >
-                  {Array.from({ length: 8 }, (_, i) => (
-                    <option key={i + 1} value={String(i + 1)}>
-                      Semester {i + 1}
-                    </option>
-                  ))}
-                </PremiumSelect>
-              </div>
-
-              <button
-                className="primary-button auth-submit"
-                disabled={profileSaving || avatarUploading}
-                onClick={handleProfileSave}
-                type="button"
-              >
-                {profileSaving ? 'Saving...' : 'Go to Dashboard'} <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )
-    }
-
-    if (view === 'auth') {
-      return <AuthPage onAuth={() => setLoading(true)} />
-    }
-
-    return (
-      <LandingPage
-        isAuthenticated={isAuthenticated}
-        onGetStarted={() => setView('auth')}
-        onLogin={() => setView('auth')}
-        onGoToDashboard={() => setView(profile ? (isProfileComplete(profile) ? 'dashboard' : 'profile-setup') : 'auth')}
-        onLogout={handleLogout}
-      />
-    )
-  }, [loading, profile, view, isAuthenticated, profileForm, profileSaving, profileError, avatarUploading, avatarProgress, avatarError, handleLogout, isDark])
-
-  return <>{mainView}{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}</>
+  return <>{content}{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}</>
 }
 
 export default App

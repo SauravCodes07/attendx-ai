@@ -48,17 +48,19 @@ export function AttendanceRowSkeleton() {
 }
 
 export function ChartSkeleton() {
+  const barHeights = ['46%', '66%', '54%', '78%', '62%', '70%', '58%']
+
   return (
     <div className="glass-card overview-card" style={{ padding: 22, opacity: 0.6 }}>
       <Skeleton style={{ width: 120, height: 14, borderRadius: 4, marginBottom: 8 }} />
       <Skeleton style={{ width: 80, height: 20, borderRadius: 4, marginBottom: 20 }} />
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 170 }}>
-        {Array.from({ length: 7 }).map((_, i) => (
+        {barHeights.map((height, index) => (
           <Skeleton
-            key={i}
+            key={height}
             style={{
               flex: 1,
-              height: `${Math.random() * 60 + 40}%`,
+              height,
               borderRadius: 6,
             }}
           />
